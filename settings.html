@@ -1,0 +1,120 @@
+<div id="imagegen_plus_settings" class="ig-root">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b><i class="fa-solid fa-image" aria-hidden="true"></i> ImageGen+</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content ig-body">
+            <div class="ig-overview">
+                <label class="checkbox_label"><input type="checkbox" data-setting="enabled"> Enable ImageGen+</label>
+                <span class="ig-badge">1.0.0</span>
+            </div>
+            <p class="ig-hint">Turn the current scene into an image. Write your own prompt, or let a saved connection profile write it for you.</p>
+            <div class="ig-toolbar"><button class="menu_button ig-primary" type="button" data-action="studio"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Open image studio</button></div>
+            <div class="ig-status" role="status" aria-live="polite">Ready</div>
+
+            <div class="ig-group-heading">Image generation</div>
+            <details class="ig-section" open>
+                <summary><span class="ig-icon fa-solid fa-plug" aria-hidden="true"></span><span><b>Connection</b><small>Your image provider and API key</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+                <div class="ig-section-content">
+                    <label class="ig-field"><span>Provider</span><select class="text_pole" data-setting="provider"><option value="literouter">LiteRouter</option></select></label>
+                    <label class="ig-field"><span>LiteRouter API key</span><input class="text_pole ig-key" type="password" autocomplete="off" spellcheck="false" placeholder="Enter API key"></label>
+                    <label class="checkbox_label"><input type="checkbox" data-setting="rememberKey"> Remember API key in my SillyTavern settings</label>
+                    <p class="ig-hint">By default, your key lasts until this page closes or reloads. Remembering it stores it unencrypted with your account settings. Configuration exports exclude the key.</p>
+                    <div class="ig-toolbar"><button class="menu_button" type="button" data-action="forget-key">Forget key</button><a href="https://docs.literouter.com/image-generation" target="_blank" rel="noopener noreferrer">Provider docs <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a></div>
+                    <label class="ig-field"><span>Request route</span><select class="text_pole" data-setting="transport"><option value="direct">Direct to LiteRouter</option><option value="proxy">SillyTavern CORS proxy</option></select></label>
+                    <p class="ig-hint" data-proxy-hint hidden>The proxy requires <code>enableCorsProxy: true</code> in SillyTavern's config.yaml and a server restart.</p>
+                    <label class="ig-field"><span>Request timeout (seconds)</span><input class="text_pole" type="number" min="15" max="600" step="1" data-setting="timeoutSeconds"></label>
+                </div>
+            </details>
+            <details class="ig-section">
+                <summary><span class="ig-icon fa-solid fa-sliders" aria-hidden="true"></span><span><b>Image options</b><small>Model, dimensions and reproducible seeds</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+                <div class="ig-section-content">
+                    <label class="ig-field"><span>Image model</span><input class="text_pole" data-setting="model" list="ig-model-list" spellcheck="false"><datalist id="ig-model-list"></datalist></label>
+                    <div class="ig-toolbar"><button class="menu_button" type="button" data-action="models">Refresh models</button><span class="ig-hint" data-model-status>Or enter a model ID manually.</span></div>
+                    <label class="ig-field"><span>Aspect ratio preset</span><select class="text_pole" data-size><option value="">Custom dimensions</option><option value="1024x1024">Square · 1024 × 1024</option><option value="768x1024">Portrait · 768 × 1024</option><option value="1024x768">Landscape · 1024 × 768</option><option value="512x512">Small square · 512 × 512</option></select></label>
+                    <div class="ig-grid">
+                        <label class="ig-field"><span>Width</span><input class="text_pole" type="number" min="256" max="2048" step="1" data-setting="width"></label>
+                        <label class="ig-field"><span>Height</span><input class="text_pole" type="number" min="256" max="2048" step="1" data-setting="height"></label>
+                    </div>
+                    <label class="ig-field"><span>Seed (blank for random)</span><input class="text_pole" type="number" min="0" max="4294967295" step="1" data-setting="seed" placeholder="Random"></label>
+                    <p class="ig-hint">Model support determines usable dimensions. A fixed seed helps reproduce an image with the same prompt and options.</p>
+                </div>
+            </details>
+
+            <div class="ig-group-heading">Intelligent prompts</div>
+            <details class="ig-section">
+                <summary><span class="ig-icon fa-solid fa-brain" aria-hidden="true"></span><span><b>Prompt writer</b><small>Connection profile and scene sources</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+                <div class="ig-section-content">
+                    <label class="ig-field"><span>Connection profile</span><select class="text_pole" data-setting="profileId"><option value="">Follow selected connection profile</option></select></label>
+                    <p class="ig-hint">Uses your saved chat or text completion profile, including its credentials and generation preset. Create profiles in SillyTavern's Connection Manager.</p>
+                    <label class="ig-field"><span>Prompt input</span><select class="text_pole" data-setting="promptMode"><option value="sources">Build from selected sources</option><option value="custom">Use my custom template</option></select></label>
+                    <span class="ig-caption">Scene sources</span>
+                    <div class="ig-sources">
+                        <label class="checkbox_label"><input type="checkbox" data-setting="sources.history"> Recent conversation</label>
+                        <label class="checkbox_label"><input type="checkbox" data-setting="sources.character"> Character description</label>
+                        <label class="checkbox_label"><input type="checkbox" data-setting="sources.persona"> User / persona description</label>
+                        <label class="checkbox_label"><input type="checkbox" data-setting="sources.scenario"> Scenario</label>
+                        <label class="checkbox_label"><input type="checkbox" data-setting="sources.personality"> Character personality</label>
+                        <label class="checkbox_label"><input type="checkbox" data-setting="sources.examples"> Example dialogue</label>
+                    </div>
+                    <div class="ig-grid">
+                        <label class="ig-field"><span>Recent messages</span><input class="text_pole" type="number" min="1" max="100" step="1" data-setting="historyMessages"></label>
+                        <label class="ig-field"><span>Source character budget</span><input class="text_pole" type="number" min="1000" max="100000" step="1" data-setting="contextChars"></label>
+                    </div>
+                    <p class="ig-hint">Generated images and system messages are omitted. The budget is shared between populated sources, keeping the newest history.</p>
+                    <div data-custom-template hidden>
+                        <label class="ig-field"><span>Custom prompt template</span><textarea class="text_pole" rows="7" data-setting="template" spellcheck="false"></textarea></label>
+                        <p class="ig-hint">Supports native macros such as <code>{{char}}</code>, <code>{{user}}</code> and <code>{{description}}</code>. Selected sources are available as <code>{{ig_history}}</code>, <code>{{ig_character}}</code>, <code>{{ig_persona}}</code>, <code>{{ig_scenario}}</code>, <code>{{ig_personality}}</code> and <code>{{ig_examples}}</code>. Native macros can include sources independently of the checkboxes.</p>
+                    </div>
+                    <label class="ig-field"><span>Prompt response limit (tokens)</span><input class="text_pole" type="number" min="64" max="2000" step="1" data-setting="maxTokens"></label>
+                    <button class="menu_button" type="button" data-action="preview-input">Preview writer input</button>
+                </div>
+            </details>
+            <details class="ig-section">
+                <summary><span class="ig-icon fa-solid fa-palette" aria-hidden="true"></span><span><b>Style &amp; instructions</b><small>Guide what the prompt writer creates</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+                <div class="ig-section-content">
+                    <label class="ig-field"><span>Writing style</span><select class="text_pole" data-setting="style"><option value="cinematic">Cinematic</option><option value="tags">Illustration tags</option><option value="anime">Anime illustration</option><option value="photo">Photographic</option><option value="custom">My own instructions</option></select></label>
+                    <p class="ig-hint" data-style-description></p>
+                    <label class="ig-field"><span>Your instructions</span><textarea class="text_pole" rows="4" data-setting="instructions" placeholder="Focus on the environment. Use comma-separated tags. Keep it under 80 words…"></textarea></label>
+                    <label class="ig-field"><span>Things to exclude</span><textarea class="text_pole" rows="3" data-setting="exclusions" placeholder="Text, logos, extra characters, spoilers…"></textarea></label>
+                    <p class="ig-hint">These guide the prompt writer. LiteRouter does not document a separate negative-prompt field, so exclusions are not sent as an unsupported API parameter.</p>
+                </div>
+            </details>
+            <details class="ig-section">
+                <summary><span class="ig-icon fa-solid fa-tags" aria-hidden="true"></span><span><b>Always include</b><small>Fixed additions to every image prompt</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+                <div class="ig-section-content">
+                    <label class="ig-field"><span>Before the prompt</span><textarea class="text_pole" rows="3" data-setting="prefix" placeholder="masterpiece, high_res, accurate anatomy"></textarea></label>
+                    <label class="ig-field"><span>After the prompt</span><textarea class="text_pole" rows="3" data-setting="suffix" placeholder="soft lighting, intricate detail"></textarea></label>
+                    <p class="ig-hint">Added to manual and AI-written prompts. Native macros work here too. Your draft stays editable without these additions.</p>
+                </div>
+            </details>
+
+            <div class="ig-group-heading">Automation</div>
+            <details class="ig-section">
+                <summary><span class="ig-icon fa-solid fa-clock" aria-hidden="true"></span><span><b>Automatic images</b><small data-auto-summary>Off · generate only when you ask</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+                <div class="ig-section-content">
+                    <label class="checkbox_label"><input type="checkbox" data-setting="auto.enabled"> Automatically illustrate the conversation</label>
+                    <div class="ig-grid">
+                        <label class="ig-field"><span>Every N matching messages</span><input class="text_pole" type="number" min="1" max="100" step="1" data-setting="auto.every"></label>
+                        <label class="ig-field"><span>Count messages from</span><select class="text_pole" data-setting="auto.role"><option value="assistant">Bots</option><option value="user">User</option><option value="all">User and bots</option></select></label>
+                    </div>
+                    <label class="ig-field"><span>Only these speaker names (optional)</span><textarea class="text_pole" rows="3" data-setting="auto.names" placeholder="The Storymaker"></textarea></label>
+                    <p class="ig-hint">One exact name per line, ignoring capitalization. Leave blank for any speaker in the chosen role. Works in solo and group chats.</p>
+                    <label class="ig-field"><span>Minimum time between automatic requests (seconds)</span><input class="text_pole" type="number" min="0" max="3600" step="1" data-setting="auto.cooldownSeconds"></label>
+                    <p class="ig-hint">Each automatic image uses your prompt writer and image provider. Counters belong to each chat and start from new messages. Greetings, swipes, continuations and generated images do not count. Pending triggers combine into the latest scene while a request is running.</p>
+                    <p class="ig-auto-status" role="status" aria-live="polite"></p>
+                    <div class="ig-toolbar"><button class="menu_button" type="button" data-action="reset-counter">Reset this chat's counter</button><button class="menu_button" type="button" data-action="resume" hidden>Resume automatic images</button></div>
+                </div>
+            </details>
+            <details class="ig-section">
+                <summary><span class="ig-icon fa-solid fa-box-archive" aria-hidden="true"></span><span><b>Configuration</b><small>Export or import your setup</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+                <div class="ig-section-content">
+                    <div class="ig-toolbar"><button class="menu_button" type="button" data-action="export">Export settings</button><button class="menu_button" type="button" data-action="import">Import settings</button><input type="file" accept="application/json,.json" data-import-file hidden></div>
+                    <p class="ig-hint">Exports include prompts and rules, but no credentials or chat history. Importing turns automatic generation off until you enable it.</p>
+                </div>
+            </details>
+            <p class="ig-footer">ImageGen+ 1.0.0 · by ZephyrThePink</p>
+        </div>
+    </div>
+</div>

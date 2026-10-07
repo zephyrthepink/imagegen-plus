@@ -1,0 +1,22 @@
+<div class="ig-root ig-studio">
+    <div class="ig-studio-header"><span class="ig-icon fa-solid fa-wand-magic-sparkles" aria-hidden="true"></span><div><small class="ig-eyebrow">ImageGen+</small><h3>Image studio</h3></div><span class="ig-badge" data-studio-model></span></div>
+    <p class="ig-hint">Illustrate your latest scene, or write a prompt of your own.</p>
+    <label class="ig-field"><span>Scene direction (optional)</span><textarea class="text_pole" rows="2" data-focus placeholder="A close-up of her expression, or a wide shot of the tavern…"></textarea></label>
+    <div class="ig-toolbar">
+        <button class="menu_button" type="button" data-action="write"><i class="fa-solid fa-brain" aria-hidden="true"></i> Write prompt</button>
+        <button class="menu_button ig-primary" type="button" data-action="scene"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Illustrate scene</button>
+    </div>
+    <label class="ig-field ig-draft-field"><span>Editable image prompt</span><textarea class="text_pole" rows="6" data-draft placeholder="Describe the image, or use Write prompt to create a draft…"></textarea></label>
+    <details class="ig-final-preview"><summary>Final prompt with your fixed additions</summary><p data-final-prompt></p></details>
+    <div class="ig-toolbar">
+        <button class="menu_button ig-primary" type="button" data-action="generate"><i class="fa-solid fa-image" aria-hidden="true"></i> Generate image</button>
+        <button class="menu_button ig-cancel" type="button" data-action="cancel" hidden>Cancel request</button>
+    </div>
+    <p class="ig-status" role="status" aria-live="polite">Ready</p>
+    <div class="ig-result" hidden>
+        <a data-image-link target="_blank" rel="noopener noreferrer"><img data-image alt="Latest generated scene"></a>
+        <p class="ig-hint" data-result-meta></p>
+        <div class="ig-toolbar"><a class="menu_button" data-download download="imagegen-plus.jpg">Download image</a><button class="menu_button" type="button" data-action="reuse">Reuse prompt</button><button class="menu_button" type="button" data-action="repeat">Repeat image</button></div>
+    </div>
+    <p class="ig-hint">Images are saved in your SillyTavern image folder and added to the current chat. Your scene direction is used only by the prompt writer.</p>
+</div>
