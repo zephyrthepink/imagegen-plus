@@ -1,4 +1,8 @@
+import { IMAGE_MODELS } from './server/shared.mjs';
+
 export const MODULE = 'imagegen-plus';
+export const VERSION = '1.0.1';
+export const PROMPT_MAX_TOKENS = 350;
 
 export const STYLES = {
     cinematic: { name: 'Cinematic', instructions: 'Write a concise natural-language image prompt for one cinematic still of the current scene. Describe visible subjects, appearance, action, environment, composition, lighting and mood. Preserve established character details. Prefer concrete visual details over abstract emotions.' },
@@ -15,15 +19,12 @@ export const DEFAULTS = {
     width: 1024,
     height: 1024,
     seed: '',
-    transport: 'direct',
     timeoutSeconds: 120,
-    rememberKey: false,
+    imageProfileId: '',
     profileId: '',
     promptMode: 'sources',
     sources: { history: true, character: true, persona: true, personality: false, scenario: true, examples: false },
     historyMessages: 12,
-    contextChars: 20000,
-    maxTokens: 350,
     style: 'cinematic',
     instructions: '',
     exclusions: '',
@@ -35,7 +36,7 @@ export const DEFAULTS = {
 
 export const NUMBER_LIMITS = {
     width: [256, 2048], height: [256, 2048], timeoutSeconds: [15, 600],
-    historyMessages: [1, 100], contextChars: [1000, 100000], maxTokens: [64, 2000],
+    historyMessages: [1, 100],
     'auto.every': [1, 100], 'auto.cooldownSeconds': [0, 3600],
 };
 
@@ -59,12 +60,12 @@ export function normalizeSettings(raw = {}) {
         const number = getPath(raw, path);
         if (Number.isInteger(number) && number >= min && number <= max) setPath(value, path, number);
     }
-    for (const [key, choices] of Object.entries({ provider: ['literouter'], transport: ['direct', 'proxy'], promptMode: ['sources', 'custom'], style: Object.keys(STYLES) })) {
+    for (const [key, choices] of Object.entries({ provider: ['literouter'], promptMode: ['sources', 'custom'], style: Object.keys(STYLES) })) {
         if (!choices.includes(value[key])) value[key] = DEFAULTS[key];
     }
     if (!['assistant', 'user', 'all'].includes(value.auto.role)) value.auto.role = DEFAULTS.auto.role;
     if (!/^\d+$/.test(value.seed) || !Number.isSafeInteger(Number(value.seed)) || Number(value.seed) > 4294967295) value.seed = '';
-    if (!value.model.trim()) value.model = DEFAULTS.model;
+    if (!IMAGE_MODELS.some(model => model.id === value.model)) value.model = DEFAULTS.model;
     return value;
 }
 
@@ -110,12 +111,8 @@ export function collectSources(context, settings) {
         examples: fields.mesExamples || character.mes_example || character.data?.mes_example || memberField('mes_example'),
     };
     const result = {};
-    // Share the budget across selected sources so a long card cannot crowd out the scene.
-    const selected = Object.keys(raw).filter(key => settings.sources[key] && cleanText(raw[key]));
-    const budget = Math.floor(settings.contextChars / Math.max(1, selected.length));
     for (const key of Object.keys(raw)) {
-        const text = settings.sources[key] ? cleanText(raw[key]) : '';
-        result[key] = key === 'history' ? text.slice(-budget) : text.slice(0, budget);
+        result[key] = settings.sources[key] ? cleanText(raw[key]) : '';
     }
     return result;
 }
@@ -156,6 +153,5 @@ export function cleanPromptResponse(response) {
 export function composeFinalPrompt(draft, settings, substitute = value => value) {
     if (!draft.trim()) throw new Error('Write or generate a prompt first.');
     const prompt = [settings.prefix, draft, settings.suffix].map(value => substitute(value).trim()).filter(Boolean).join(', ');
-    if (prompt.length > 50000) throw new Error('The final prompt is too long. Keep it under 50,000 characters.');
     return prompt;
 }

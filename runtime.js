@@ -1,11 +1,12 @@
-import { MODULE, buildPromptRequest, chatKey, cleanPromptResponse, composeFinalPrompt, matchesRule, ruleSignature } from './core.js';
+import { MODULE, PROMPT_MAX_TOKENS, buildPromptRequest, chatKey, cleanPromptResponse, composeFinalPrompt, matchesRule, ruleSignature } from './core.js';
+import { resolveImageProfile } from './server/shared.mjs';
 import { liteRouter } from './providers/literouter.js';
 
 export const PROVIDERS = new Map([[liteRouter.id, liteRouter]]);
 
 export class GenerationRuntime {
-    constructor({ context, settings, apiKey, saveImage, publishImage, onState = () => {} }) {
-        Object.assign(this, { context, settings, apiKey, saveImage, publishImage, onState });
+    constructor({ context, settings, saveImage, publishImage, onState = () => {} }) {
+        Object.assign(this, { context, settings, saveImage, publishImage, onState });
         this.controller = null;
         this.phase = 'idle';
         this.lastResult = null;
@@ -23,8 +24,7 @@ export class GenerationRuntime {
         if (!settings.enabled) throw new Error('Enable ImageGen+ first.');
         const origin = this.context();
         if (!chatKey(origin)) throw new Error('Open a character or group chat first.');
-        const key = this.apiKey();
-        if (kind !== 'prompt' && !key.trim()) throw new Error('Enter your LiteRouter API key in Connection settings.');
+        const imageProfile = kind !== 'prompt' ? resolveImageProfile(origin, settings.imageProfileId) : null;
         const controller = new AbortController();
         this.controller = controller;
         const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(settings.timeoutSeconds * 1000)]);
@@ -42,7 +42,7 @@ export class GenerationRuntime {
                 const messages = buildPromptRequest(origin, settings, focus);
                 // constructPrompt preserves the instruct format for Text Completion profiles.
                 const prompt = service.constructPrompt(messages, profileId);
-                const response = await service.sendRequest(profileId, prompt, settings.maxTokens, { stream: false, extractData: true, includePreset: true, includeInstruct: true, signal });
+                const response = await service.sendRequest(profileId, prompt, PROMPT_MAX_TOKENS, { stream: false, extractData: true, includePreset: true, includeInstruct: true, signal });
                 this.assertCurrent(origin, signal);
                 written = cleanPromptResponse(response);
                 if (kind === 'prompt') return { draft: written };
@@ -52,7 +52,7 @@ export class GenerationRuntime {
             const imageSettings = exact ? { ...settings, ...exact.settings } : settings;
             const provider = PROVIDERS.get(imageSettings.provider);
             if (!provider) throw new Error('This image provider is not available.');
-            const image = await provider.generate(prompt, { key, settings: imageSettings, signal, headers: origin.getRequestHeaders() });
+            const image = await provider.generate(prompt, { profile: imageProfile, settings: imageSettings, signal, headers: origin.getRequestHeaders() });
             this.assertCurrent(origin, signal);
             phase('Saving image…');
             const url = await this.saveImage(image, origin);

@@ -7,7 +7,7 @@ function fixture(overrides = {}) {
     let settings = normalizeSettings(overrides);
     let current = {
         chatId: 'chat-a', characterId: 0, name1: 'User', name2: 'Mira', chat: [], chatMetadata: {},
-        characters: [{ description: 'A mage' }], extensionSettings: { connectionManager: { selectedProfile: 'profile-1' } },
+        characters: [{ description: 'A mage' }], extensionSettings: { connectionManager: { selectedProfile: 'profile-1', profiles: [{ id: 'profile-1', api: 'custom', 'api-url': 'https://api.literouter.com/v1', 'secret-id': 'saved-key-id' }] } },
         substituteParams: text => text, substituteParamsExtended: text => text,
         getRequestHeaders: () => ({}),
     };
@@ -169,7 +169,7 @@ function runtimeFixture(options = {}) {
         generate: async (prompt, params) => { payload = { prompt, params }; if (options.provider) await options.provider(); return { blob: new Blob(['image']), model: 'test-model', seed: '99', format: 'jpg' }; },
     });
     const runtime = new GenerationRuntime({
-        ...f, settings: () => ({ ...f.settings(), provider: providerId }), apiKey: () => 'test-key',
+        ...f, settings: () => ({ ...f.settings(), provider: providerId }),
         saveImage: async () => { saved++; if (options.save) await options.save(); return '/image.jpg'; },
         publishImage: async () => { published++; },
     });
@@ -215,6 +215,24 @@ test('scene generation composes fixed additions once, saves image and records re
     assert.equal(f.published(), 1);
     assert.equal(result.automatic, true);
     assert.equal(result.settings.seed, '99');
+    assert.equal(f.payload().params.profile['secret-id'], 'saved-key-id');
+    assert.equal(Object.hasOwn(f.payload().params, 'key'), false);
+});
+
+test('image generation uses its chosen LiteRouter profile without switching the prompt writer or active profile', async () => {
+    const f = runtimeFixture({ settings: { imageProfileId: 'image-profile' } });
+    f.context().extensionSettings.connectionManager.profiles.push({ id: 'image-profile', api: 'custom', 'api-url': 'https://api.literouter.com/v1/', 'secret-id': 'image-secret' });
+    await f.runtime.run('scene');
+    assert.equal(f.payload().params.profile.id, 'image-profile');
+    assert.equal(f.payload().params.profile['secret-id'], 'image-secret');
+    assert.equal(f.context().extensionSettings.connectionManager.selectedProfile, 'profile-1');
+});
+
+test('an unrelated connection profile is rejected before image generation', async () => {
+    const f = runtimeFixture({ settings: { imageProfileId: 'wrong-profile' } });
+    f.context().extensionSettings.connectionManager.profiles.push({ id: 'wrong-profile', api: 'custom', 'api-url': 'https://another-provider.test/v1' });
+    await assert.rejects(() => f.runtime.run('image', { draft: 'A scene' }), /saved Custom.*connection profile/);
+    assert.equal(f.payload(), undefined);
 });
 
 test('repeat requests retain exact prompt and original draft without reapplying additions', async () => {

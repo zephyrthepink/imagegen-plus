@@ -1,10 +1,11 @@
 import { getContext } from '../../../extensions.js';
 import { saveBase64AsFile } from '../../../utils.js';
-import { MODULE, DEFAULTS, STYLES, NUMBER_LIMITS, buildPromptRequest, composeFinalPrompt, getPath, setPath, normalizeSettings } from './core.js';
+import { MODULE, VERSION, DEFAULTS, STYLES, NUMBER_LIMITS, buildPromptRequest, composeFinalPrompt, getPath, setPath, normalizeSettings } from './core.js';
 import { AutoScheduler, GenerationRuntime, PROVIDERS } from './runtime.js';
+import { BRIDGE } from './providers/literouter.js';
+import { IMAGE_MODELS, imageProfiles, resolveImageProfile } from './server/shared.mjs';
 
 const assets = new URL('./', import.meta.url);
-const KEY_STORAGE = `${MODULE}:api-key`;
 let settings;
 let settingsRoot;
 let studioTemplate;
@@ -12,7 +13,6 @@ let studioPopup;
 let studioRoot;
 let runtime;
 let scheduler;
-let sessionKey = '';
 let draft = '';
 let focus = '';
 let notice = 'Ready';
@@ -33,12 +33,6 @@ function fromHtml(html) {
     return template.content.firstElementChild;
 }
 
-function saveKeyPreference() {
-    const storage = context().accountStorage;
-    if (settings.rememberKey && sessionKey.trim()) storage.setItem(KEY_STORAGE, sessionKey.trim());
-    else storage.removeItem(KEY_STORAGE);
-}
-
 function populateProfiles() {
     const select = settingsRoot.querySelector('[data-setting=profileId]');
     select.replaceChildren(new Option('Follow selected connection profile', ''));
@@ -47,6 +41,35 @@ function populateProfiles() {
     for (const profile of [...profiles].sort((a, b) => a.name.localeCompare(b.name))) select.add(new Option(`${profile.name} · ${profile.model || profile.api}`, profile.id));
     if (settings.profileId && !profiles.some(profile => profile.id === settings.profileId)) select.add(new Option('Saved profile unavailable — choose another', settings.profileId));
     select.value = settings.profileId;
+    const imageSelect = settingsRoot.querySelector('[data-setting=imageProfileId]');
+    imageSelect.replaceChildren(new Option('Follow selected LiteRouter profile', ''));
+    const imageConnections = imageProfiles(context());
+    for (const profile of [...imageConnections].sort((a, b) => a.name.localeCompare(b.name))) imageSelect.add(new Option(profile.name, profile.id));
+    if (settings.imageProfileId && !imageConnections.some(profile => profile.id === settings.imageProfileId)) imageSelect.add(new Option('Saved LiteRouter profile unavailable — choose another', settings.imageProfileId));
+    imageSelect.value = settings.imageProfileId;
+}
+
+function renderModelChoices() {
+    const select = settingsRoot.querySelector('[data-setting=model]');
+    select.replaceChildren(...IMAGE_MODELS.map(model => new Option(`${model.id}${model.tier ? ` · ${model.tier}` : ''} · ${model.cost} credits`, model.id)));
+    select.value = settings.model;
+}
+
+function renderAdditionsPreview() {
+    settingsRoot.querySelector('[data-additions-preview]').textContent = composeFinalPrompt('your image prompt', settings, value => context().substituteParams(value));
+}
+
+async function checkBridge() {
+    const status = settingsRoot.querySelector('[data-bridge-status]');
+    try {
+        const response = await fetch(`${BRIDGE}/health`, { headers: context().getRequestHeaders(), cache: 'no-store' });
+        if (!response.ok || !(await response.json()).ready) throw new Error('Unavailable');
+        status.textContent = 'Profile bridge ready. Saved credentials stay on the server.';
+        settingsRoot.querySelector('[data-bridge-setup]').open = false;
+    } catch {
+        status.textContent = 'Install the profile bridge once to use saved connection credentials.';
+        settingsRoot.querySelector('[data-bridge-setup]').open = true;
+    }
 }
 
 function renderSettings() {
@@ -56,12 +79,12 @@ function renderSettings() {
         else element.value = value;
     }
     settingsRoot.querySelector('[data-custom-template]').hidden = settings.promptMode !== 'custom';
-    settingsRoot.querySelector('[data-proxy-hint]').hidden = settings.transport !== 'proxy';
     settingsRoot.querySelector('[data-style-description]').textContent = STYLES[settings.style].instructions || 'Your instructions below define the writing style.';
     const size = settingsRoot.querySelector('[data-size]');
     size.value = [...size.options].some(option => option.value === `${settings.width}x${settings.height}`) ? `${settings.width}x${settings.height}` : '';
-    settingsRoot.querySelector('.ig-key').value = sessionKey;
     populateProfiles();
+    renderModelChoices();
+    renderAdditionsPreview();
     renderState();
     renderStudio();
 }
@@ -79,7 +102,7 @@ function renderState() {
         }
     }
     const badge = settingsRoot.querySelector('.ig-badge');
-    badge.textContent = settings.enabled ? 'Enabled · 1.0.0' : 'Disabled';
+    badge.textContent = settings.enabled ? `Enabled · ${VERSION}` : 'Disabled';
     badge.classList.toggle('active', settings.enabled);
     if (!scheduler) return;
     const rule = settings.auto;
@@ -236,13 +259,13 @@ async function handleAction(action, button) {
             }
             case 'models': {
                 button.disabled = true;
-                const models = await PROVIDERS.get(settings.provider).models({ key: sessionKey, settings: structuredClone(settings), headers: context().getRequestHeaders() });
-                settingsRoot.querySelector('#ig-model-list').replaceChildren(...models.map(id => new Option(id, id)));
-                settingsRoot.querySelector('[data-model-status]').textContent = `${models.length} models loaded. Choose one or enter its ID.`;
+                const profile = resolveImageProfile(context(), settings.imageProfileId);
+                const models = await PROVIDERS.get(settings.provider).models({ profile, settings: structuredClone(settings), headers: context().getRequestHeaders() });
+                settingsRoot.querySelector('[data-model-status]').textContent = `${models.length} curated models · ${models.filter(model => model.listed).length} confirmed by LiteRouter. Availability depends on your plan.`;
                 notify('Image models refreshed.');
                 break;
             }
-            case 'forget-key': sessionKey = ''; context().accountStorage.removeItem(KEY_STORAGE); renderSettings(); notify('API key cleared.'); break;
+            case 'check-bridge': await checkBridge(); break;
             case 'preview-input': await previewInput(); break;
             case 'resume': scheduler.resume(); break;
             case 'reset-counter': {
@@ -253,7 +276,7 @@ async function handleAction(action, button) {
                 renderState();
                 break;
             }
-            case 'export': downloadJson({ extension: MODULE, version: '1.0.0', settings: { ...settings, rememberKey: false } }, 'imagegen-plus-settings.json'); break;
+            case 'export': downloadJson({ extension: MODULE, version: VERSION, settings }, 'imagegen-plus-settings.json'); break;
             case 'import': settingsRoot.querySelector('[data-import-file]').click(); break;
         }
     } catch (error) {
@@ -264,7 +287,6 @@ async function handleAction(action, button) {
 function bindSettings() {
     settingsRoot.addEventListener('input', event => {
         const element = event.target;
-        if (element.matches('.ig-key')) { sessionKey = element.value; saveKeyPreference(); return; }
         const path = element.dataset.setting;
         if (!path || !Object.hasOwn(DEFAULTS, path.split('.')[0])) return;
         let value = element.type === 'checkbox' ? element.checked : element.value;
@@ -276,7 +298,6 @@ function bindSettings() {
         }
         if (path === 'seed' && value !== '' && !element.checkValidity()) return;
         setPath(settings, path, value);
-        if (path === 'rememberKey') saveKeyPreference();
         if (path === 'enabled' && !value) { runtime.cancel(); scheduler.stop(); }
         if (path.startsWith('auto.')) {
             scheduler.stop();
@@ -284,6 +305,7 @@ function bindSettings() {
             context().saveMetadataDebounced();
         }
         persist();
+        if (path === 'prefix' || path === 'suffix') renderAdditionsPreview();
         if (['promptMode', 'style', 'width', 'height'].includes(path)) renderSettings();
         else { renderState(); if (studioRoot) { studioRoot.querySelector('[data-final-prompt]').textContent = finalPrompt(); studioRoot.querySelector('[data-studio-model]').textContent = settings.model; } }
     });
@@ -314,9 +336,7 @@ function bindSettings() {
             runtime.cancel();
             settings = normalizeSettings(data.settings);
             settings.auto.enabled = false;
-            settings.rememberKey = false;
             context().extensionSettings[MODULE] = settings;
-            saveKeyPreference();
             scheduler.reset();
             persist();
             renderSettings();
@@ -388,14 +408,14 @@ async function initialize() {
     const ctx = context();
     settings = normalizeSettings(ctx.extensionSettings[MODULE]);
     ctx.extensionSettings[MODULE] = settings;
-    sessionKey = settings.rememberKey ? ctx.accountStorage.getItem(KEY_STORAGE) || '' : '';
-    if (!settings.rememberKey) ctx.accountStorage.removeItem(KEY_STORAGE);
+    // One-time migration removes the obsolete v1.0.0 credential copy.
+    ctx.accountStorage.removeItem(`${MODULE}:api-key`);
     const [html, studio] = await Promise.all([loadAsset('settings.html'), loadAsset('studio.html')]);
     settingsRoot = fromHtml(html);
     studioTemplate = studio;
     document.getElementById('extensions_settings2').append(settingsRoot);
     runtime = new GenerationRuntime({
-        context, settings: () => settings, apiKey: () => sessionKey,
+        context, settings: () => settings,
         saveImage: async (image, origin) => saveBase64AsFile(await blobBase64(image.blob), origin.groupId ? 'ImageGenPlus' : origin.name2 || 'ImageGenPlus', `imagegen-plus-${Date.now()}-${crypto.randomUUID()}`, image.format),
         publishImage, onState: renderState,
     });
@@ -408,6 +428,7 @@ async function initialize() {
     renderSettings();
     addChatMenu();
     persist();
+    void checkBridge();
 }
 
 jQuery(() => { void initialize().catch(error => { globalThis.toastr?.error(error.message, 'ImageGen+ could not load'); }); });

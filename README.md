@@ -2,14 +2,14 @@
 
 Turn your SillyTavern conversations into images with editable AI-written prompts, flexible automatic generation, and LiteRouter image generation.
 
-**Version 1.0.0 · Author: ZephyrThePink · MIT license**
+**Version 1.0.1 · Author: ZephyrThePink · MIT license**
 
 ## Features
 
 - **Image studio:** write your own prompt, ask an AI to draft one, or illustrate the latest scene in one click. Preview the final prompt before submitting it.
-- **LiteRouter image generation:** model discovery, manual model IDs, square/portrait/landscape sizes, optional fixed seeds, timeouts and cancellation. The provider interface is separate from prompt writing and automation to support future providers.
+- **LiteRouter image generation:** reuse a saved LiteRouter connection profile, select from 23 curated image models, refresh availability, choose square/portrait/landscape sizes, set optional seeds and cancel requests.
 - **Intelligent prompt writing:** use a saved SillyTavern Connection Manager profile, including chat and text completion profiles. Your active chat connection is not switched.
-- **Choose your sources:** recent conversation, character description, user/persona description, scenario, personality and example dialogue. Limit message count and source length. Group chats use SillyTavern's current character-card resolution.
+- **Choose your sources:** recent conversation, character description, user/persona description, scenario, personality and example dialogue. Choose how many recent messages to include. Selected descriptions and messages are included in full. Group chats use SillyTavern's current character-card resolution.
 - **Custom templates:** native SillyTavern macros and extension source macros. Preview the exact instructions and scene input sent to your prompt writer.
 - **Style presets:** cinematic, illustration tags, anime and photographic, plus your own instructions and things to exclude.
 - **Always include:** prepend or append fixed tags, descriptions or macros to both manual and AI-written prompts.
@@ -20,16 +20,17 @@ Turn your SillyTavern conversations into images with editable AI-written prompts
 
 ## Installation
 
-Requires **SillyTavern 1.19.0 or newer**. Intelligent prompt writing requires Connection Manager to be enabled and a supported saved connection profile. Manual prompts do not need a text-generation profile. No Extras service, npm installation or additional server plugin is required.
+Requires **SillyTavern 1.19.0 or newer**, Connection Manager, a saved LiteRouter Custom connection profile and the bundled **ImageGen+ profile bridge**. Intelligent prompt writing can use any supported saved chat/text completion profile. No Extras service or npm installation is needed.
 
 1. Open **Extensions → Install extension**.
 2. Paste `https://github.com/zephyrthepink/imagegen-plus` and install.
 3. Reload SillyTavern and open **Extensions → ImageGen+**.
-4. Enter a LiteRouter API key under **Connection**.
-5. Open **Prompt writer** and choose a saved connection profile, or follow the profile selected in Connection Manager.
-6. Open a chat, then select **Open image studio** or **ImageGen+ studio** from the chat's wand menu.
+4. Download **ImageGenPlus-Server-Bridge.zip** from the [latest release](https://github.com/zephyrthepink/imagegen-plus/releases/latest), extract it into your SillyTavern root folder, set `enableServerPlugins: true` in `config.yaml`, and restart SillyTavern. This is a one-time setup; [manual installation details](server/README.md) are also available.
+5. Under **Connection**, choose a saved **Custom (OpenAI-compatible)** profile using `https://api.literouter.com/v1`. Its existing saved credentials are reused for models and images. The profile's chat model is unchanged.
+6. Open **Prompt writer** and choose the connection profile that writes your prompts. It can be different from the LiteRouter image connection.
+7. Open a chat, then select **Open image studio** or **ImageGen+ studio** from the chat's wand menu.
 
-The API key stays in memory until the page closes/reloads unless you explicitly enable **Remember API key in my SillyTavern settings**. Remembered keys are stored unencrypted in SillyTavern account storage, alongside account settings. **Forget key** clears both the in-memory key and its stored copy. Configuration exports never contain credentials.
+The extension has no API-key entry or credential store. The bridge reads the authenticated user's saved Custom key using the profile's secret ID, matching native SillyTavern behavior. Keys stay on the server; enabling key exposure or the CORS proxy is unnecessary. Upgrading from 1.0.0 removes its obsolete stored credential copy. Configuration exports contain profile IDs, prompts and rules, but no keys or chat history.
 
 ## Image studio
 
@@ -53,9 +54,9 @@ With no argument, `/igplus` illustrates the current scene using the prompt write
 
 ## Sources, templates and style
 
-In **Build from selected sources** mode, selected fields are assembled automatically. The source character budget is divided equally among populated sources. Character fields keep their beginning; history keeps its newest portion. Inline HTML and closed reasoning blocks are removed from selected sources. The source budget is measured in characters; the prompt writer's response limit is measured in tokens.
+In **Build from selected sources** mode, selected fields are assembled automatically. **Only include the last N conversation messages** controls history: choose 5, for example, to include the latest five conversation messages. Those messages and all selected description fields are included in full. Inline HTML and closed reasoning blocks are removed; there is no extension character truncation.
 
-In **Use my custom template** mode, your template replaces the assembled input. These additional macros use your selected, bounded sources:
+In **Use my custom template** mode, your template replaces the assembled input. These additional macros use your selected sources:
 
 | Macro | Source |
 | --- | --- |
@@ -66,9 +67,23 @@ In **Use my custom template** mode, your template replaces the assembled input. 
 | `{{ig_personality}}` | Character personality |
 | `{{ig_examples}}` | Example dialogue |
 
-Native macros such as `{{char}}`, `{{user}}`, `{{description}}` and STscript variable macros are expanded by SillyTavern. Native macros can include information independently of the source checkboxes and character budget; preview the input if you use them. Native macros also work in writer instructions, scene direction and fixed prompt additions.
+Native macros such as `{{char}}`, `{{user}}`, `{{description}}` and STscript variable macros are expanded by SillyTavern. Native macros can include information independently of the source checkboxes; preview the input if you use them. Native macros also work in writer instructions, scene direction and fixed prompt additions.
 
 Style presets are starting instructions, supplemented by **Your instructions**. Choose **My own instructions** to provide your entire style guide. **Things to exclude** guides the text model; it does not send a negative-prompt field to LiteRouter, whose documented API has no such parameter. Exclusions cannot guarantee what the image model produces.
+
+### What does “Always include” mean?
+
+It adds fixed text to every image request, in this order:
+
+**Beginning additions → editable prompt → ending additions**
+
+For example, beginning additions `masterpiece, high_res`, draft `a mage in a tavern` and ending additions `accurate anatomy` produce:
+
+```text
+masterpiece, high_res, a mage in a tavern, accurate anatomy
+```
+
+Use the beginning field for tags or style cues you want up front, and the ending field for details you want appended. You can use either field, both, or neither. These are parts of the final image prompt, rather than instructions for the prompt-writing AI. The settings include a live example, and the studio previews the exact final prompt. Your editable draft keeps just the scene text, so fixed additions are applied once.
 
 ## Automatic generation
 
@@ -92,11 +107,13 @@ Implemented against [LiteRouter's image generation documentation](https://docs.l
 - Models: authenticated `GET /models`.
 - Images: authenticated `POST /generate` with `prompt`, `model`, `width`, `height`, and optional `seed`.
 - Result: binary JPEG, saved through SillyTavern's native image upload API.
-- Optional response headers: `X-Model`, `X-Seed`, `X-Request-ID`. Browsers may not expose these headers; the UI indicates when a random seed is unavailable.
+- Optional response headers: `X-Model`, `X-Seed`, `X-Request-ID`, forwarded by the bridge for reproducibility and debugging.
 
-Direct browser requests are the default. If blocked by your network/browser, choose **SillyTavern CORS proxy**, set `enableCorsProxy: true` in SillyTavern's `config.yaml` and restart the server. The extension never falls back or retries a generation automatically, avoiding duplicate requests.
+The browser sends the chosen profile's ID, Custom API source, endpoint and saved secret ID to the bridge. The authenticated user's account directories determine the key lookup. The bridge sends the key only to the fixed image host, never to a URL supplied by the browser. The extension never retries a generation automatically.
 
-If model refresh fails, enter a supported model ID manually. The documented default is `sdxl-turbo`. Dimensions from 256 to 2048 and nonnegative 32-bit seeds are accepted by the extension; the selected provider/model may impose narrower limits. HTTP errors, invalid image responses and timeouts are surfaced in the UI.
+The model selector contains the 23 image models from the supplied LiteRouter catalog: `2dn-pony-v2`, `aniflatmix-anime`, `animagine-xl-31`, `artiwaifu-diffusion`, `atomix-xl`, `boltning`, `crystal-clear-xl-lightning`, `cyberrealistic-pony-v9`, `cyberrealistic-xl`, `dreamshaper-v1`, `dreamshaper-xl`, `fast-sdxl`, `fluently-xl`, `gen-illustrious`, `hassaku`, `hidream-i1-fast`, `p-image`, `persona`, `proteus`, `prunaai`, `realpony-xl`, `rev-animated` and `sdxl-turbo`. Plan and credit labels reflect that reference catalog. Refresh checks which curated IDs the image endpoint currently lists; it never adds chat models or removes your configured choice. Access depends on the account plan. The curated selector remains available if refresh fails.
+
+The default is `sdxl-turbo`. Dimensions from 256 to 2048 and nonnegative 32-bit seeds are accepted by the extension; the selected provider/model may impose narrower limits. HTTP errors, invalid image responses and timeouts are surfaced in the UI.
 
 ## Development
 
@@ -107,7 +124,7 @@ npm run check
 npm test
 ```
 
-`core.js` handles settings, sources, macros and prompt composition. `runtime.js` handles requests, chat ownership, cancellation and scheduling. `providers/literouter.js` implements the provider contract. `index.js`, `settings.html`, `studio.html` and `style.css` provide SillyTavern integration and UI.
+`core.js` handles settings, sources, macros and prompt composition. `runtime.js` handles requests, chat ownership, cancellation and scheduling. `providers/literouter.js` implements the browser provider contract. `server/` contains the profile bridge and shared catalog/validation functions. `index.js`, `settings.html`, `studio.html` and `style.css` provide SillyTavern integration and UI.
 
 Built using the [SillyTavern extension example](https://github.com/city-unit/st-extension-example) as the manifest/settings entry-point reference, and local SillyTavern source as the API reference. The implementation uses native Connection Manager, macro, chat-event, popup, image-upload and settings APIs.
 

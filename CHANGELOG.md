@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1
+
+- Replace separate API-key settings with a saved LiteRouter connection-profile selector.
+- Add a bundled server bridge that reuses native account-scoped credentials without exposing keys to the browser.
+- Add all 23 curated image models from the supplied catalog, with profile-based model refresh.
+- Remove character truncation and configurable length controls; use only the last-N-messages setting for source selection.
+- Explain fixed beginning/ending prompt additions with clearer labels and a live example.
+- Remove API-key remembering/forgetting controls, direct/proxy route selection and the Provider docs button.
+- Migrate settings and remove obsolete credential copies from 1.0.0.
+
 ## 1.0.0
 
 Initial release by ZephyrThePink.

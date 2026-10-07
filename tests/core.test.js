@@ -13,9 +13,9 @@ function fixture() {
 }
 
 test('defaults disable automation and persisted credentials; normalization rejects invalid or unknown settings', () => {
-    const settings = normalizeSettings({ auto: { enabled: true, every: 0, role: 'invalid' }, width: 0, seed: '-1', apiKey: 'secret', sources: { history: false }, model: '' });
+    const settings = normalizeSettings({ auto: { enabled: true, every: 0, role: 'invalid' }, width: 0, seed: '-1', apiKey: 'secret', rememberKey: true, transport: 'direct', contextChars: 1000, maxTokens: 64, sources: { history: false }, model: '' });
     assert.equal(DEFAULTS.auto.enabled, false);
-    assert.equal(DEFAULTS.rememberKey, false);
+    for (const key of ['rememberKey', 'transport', 'contextChars', 'maxTokens']) assert.equal(Object.hasOwn(settings, key), false);
     assert.equal(settings.width, 1024);
     assert.equal(settings.seed, '');
     assert.equal(settings.auto.every, 3);
@@ -83,13 +83,21 @@ test('groups with no active speaker fall back to their member cards', () => {
     assert.equal(sources.scenario, 'Mira: A quiet tavern.');
 });
 
-test('source budget bounds large cards and retains the newest history', () => {
+test('selected sources and recent messages remain complete regardless of obsolete character settings', () => {
     const context = fixture();
     context.characters[0].description = 'x'.repeat(5000);
     context.chat[1].mes = 'a'.repeat(5000) + 'latest moment';
     const sources = collectSources(context, normalizeSettings({ contextChars: 1000 }));
-    assert(Object.values(sources).reduce((sum, text) => sum + text.length, 0) <= 1000);
-    assert(sources.history.endsWith('latest moment'));
+    assert.equal(sources.character, 'x'.repeat(5000));
+    assert.equal(sources.history, `Zephyr: Hello\n\nMira: ${'a'.repeat(5000)}latest moment`);
+});
+
+test('only the last five conversation messages are included, without truncating their text', () => {
+    const context = fixture();
+    context.chat = Array.from({ length: 12 }, (_, index) => ({ name: 'Mira', mes: `Message ${index}: ${'x'.repeat(6000)}`, is_user: false }));
+    const sources = collectSources(context, normalizeSettings({ historyMessages: 5 }));
+    assert(!sources.history.includes('Message 6:'));
+    for (let index = 7; index < 12; index++) assert(sources.history.includes(`Message ${index}: ${'x'.repeat(6000)}`));
 });
 
 test('custom templates expand both native and selected-source macros; styles and exclusions remain in system instructions', () => {

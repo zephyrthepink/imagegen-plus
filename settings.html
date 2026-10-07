@@ -7,7 +7,7 @@
         <div class="inline-drawer-content ig-body">
             <div class="ig-overview">
                 <label class="checkbox_label"><input type="checkbox" data-setting="enabled"> Enable ImageGen+</label>
-                <span class="ig-badge">1.0.0</span>
+                <span class="ig-badge">1.0.1</span>
             </div>
             <p class="ig-hint">Turn the current scene into an image. Write your own prompt, or let a saved connection profile write it for you.</p>
             <div class="ig-toolbar"><button class="menu_button ig-primary" type="button" data-action="studio"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Open image studio</button></div>
@@ -15,23 +15,30 @@
 
             <div class="ig-group-heading">Image generation</div>
             <details class="ig-section" open>
-                <summary><span class="ig-icon fa-solid fa-plug" aria-hidden="true"></span><span><b>Connection</b><small>Your image provider and API key</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
+                <summary><span class="ig-icon fa-solid fa-plug" aria-hidden="true"></span><span><b>Connection</b><small>Use your saved LiteRouter connection profile</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
                 <div class="ig-section-content">
                     <label class="ig-field"><span>Provider</span><select class="text_pole" data-setting="provider"><option value="literouter">LiteRouter</option></select></label>
-                    <label class="ig-field"><span>LiteRouter API key</span><input class="text_pole ig-key" type="password" autocomplete="off" spellcheck="false" placeholder="Enter API key"></label>
-                    <label class="checkbox_label"><input type="checkbox" data-setting="rememberKey"> Remember API key in my SillyTavern settings</label>
-                    <p class="ig-hint">By default, your key lasts until this page closes or reloads. Remembering it stores it unencrypted with your account settings. Configuration exports exclude the key.</p>
-                    <div class="ig-toolbar"><button class="menu_button" type="button" data-action="forget-key">Forget key</button><a href="https://docs.literouter.com/image-generation" target="_blank" rel="noopener noreferrer">Provider docs <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a></div>
-                    <label class="ig-field"><span>Request route</span><select class="text_pole" data-setting="transport"><option value="direct">Direct to LiteRouter</option><option value="proxy">SillyTavern CORS proxy</option></select></label>
-                    <p class="ig-hint" data-proxy-hint hidden>The proxy requires <code>enableCorsProxy: true</code> in SillyTavern's config.yaml and a server restart.</p>
+                    <label class="ig-field"><span>Connection profile for images</span><select class="text_pole" data-setting="imageProfileId"><option value="">Follow selected LiteRouter profile</option></select></label>
+                    <p class="ig-hint">Shows saved Custom (OpenAI-compatible) profiles using <code>https://api.literouter.com/v1</code>. Images reuse that profile's saved credentials. Choose the image model below; the profile's chat model stays unchanged.</p>
+                    <p class="ig-hint" data-bridge-status role="status">Checking profile bridge…</p>
+                    <details data-bridge-setup>
+                        <summary class="ig-hint">One-time profile bridge setup</summary>
+                        <ol class="ig-hint">
+                            <li><a href="https://github.com/zephyrthepink/imagegen-plus/releases/latest/download/ImageGenPlus-Server-Bridge.zip">Download the profile bridge</a> and extract it into your SillyTavern root folder.</li>
+                            <li>Set <code>enableServerPlugins: true</code> in SillyTavern's <code>config.yaml</code>.</li>
+                            <li>Restart SillyTavern and reload this page.</li>
+                        </ol>
+                        <p class="ig-hint">The bridge keeps the saved key on the server while forwarding image requests.</p>
+                    </details>
+                    <button class="menu_button" type="button" data-action="check-bridge">Check profile bridge</button>
                     <label class="ig-field"><span>Request timeout (seconds)</span><input class="text_pole" type="number" min="15" max="600" step="1" data-setting="timeoutSeconds"></label>
                 </div>
             </details>
             <details class="ig-section">
                 <summary><span class="ig-icon fa-solid fa-sliders" aria-hidden="true"></span><span><b>Image options</b><small>Model, dimensions and reproducible seeds</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
                 <div class="ig-section-content">
-                    <label class="ig-field"><span>Image model</span><input class="text_pole" data-setting="model" list="ig-model-list" spellcheck="false"><datalist id="ig-model-list"></datalist></label>
-                    <div class="ig-toolbar"><button class="menu_button" type="button" data-action="models">Refresh models</button><span class="ig-hint" data-model-status>Or enter a model ID manually.</span></div>
+                    <label class="ig-field"><span>Image model</span><select class="text_pole" data-setting="model"></select></label>
+                    <div class="ig-toolbar"><button class="menu_button" type="button" data-action="models">Refresh models using profile</button><span class="ig-hint" data-model-status>23 curated image models. Plan and credit labels come from the supplied catalog.</span></div>
                     <label class="ig-field"><span>Aspect ratio preset</span><select class="text_pole" data-size><option value="">Custom dimensions</option><option value="1024x1024">Square · 1024 × 1024</option><option value="768x1024">Portrait · 768 × 1024</option><option value="1024x768">Landscape · 1024 × 768</option><option value="512x512">Small square · 512 × 512</option></select></label>
                     <div class="ig-grid">
                         <label class="ig-field"><span>Width</span><input class="text_pole" type="number" min="256" max="2048" step="1" data-setting="width"></label>
@@ -58,16 +65,12 @@
                         <label class="checkbox_label"><input type="checkbox" data-setting="sources.personality"> Character personality</label>
                         <label class="checkbox_label"><input type="checkbox" data-setting="sources.examples"> Example dialogue</label>
                     </div>
-                    <div class="ig-grid">
-                        <label class="ig-field"><span>Recent messages</span><input class="text_pole" type="number" min="1" max="100" step="1" data-setting="historyMessages"></label>
-                        <label class="ig-field"><span>Source character budget</span><input class="text_pole" type="number" min="1000" max="100000" step="1" data-setting="contextChars"></label>
-                    </div>
-                    <p class="ig-hint">Generated images and system messages are omitted. The budget is shared between populated sources, keeping the newest history.</p>
+                    <label class="ig-field"><span>Only include the last N conversation messages</span><input class="text_pole" type="number" min="1" max="100" step="1" data-setting="historyMessages"></label>
+                    <p class="ig-hint">For example, set 5 to use the last five conversation messages. Selected descriptions and those messages are included in full. Generated images and system messages are omitted.</p>
                     <div data-custom-template hidden>
                         <label class="ig-field"><span>Custom prompt template</span><textarea class="text_pole" rows="7" data-setting="template" spellcheck="false"></textarea></label>
                         <p class="ig-hint">Supports native macros such as <code>{{char}}</code>, <code>{{user}}</code> and <code>{{description}}</code>. Selected sources are available as <code>{{ig_history}}</code>, <code>{{ig_character}}</code>, <code>{{ig_persona}}</code>, <code>{{ig_scenario}}</code>, <code>{{ig_personality}}</code> and <code>{{ig_examples}}</code>. Native macros can include sources independently of the checkboxes.</p>
                     </div>
-                    <label class="ig-field"><span>Prompt response limit (tokens)</span><input class="text_pole" type="number" min="64" max="2000" step="1" data-setting="maxTokens"></label>
                     <button class="menu_button" type="button" data-action="preview-input">Preview writer input</button>
                 </div>
             </details>
@@ -84,9 +87,11 @@
             <details class="ig-section">
                 <summary><span class="ig-icon fa-solid fa-tags" aria-hidden="true"></span><span><b>Always include</b><small>Fixed additions to every image prompt</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
                 <div class="ig-section-content">
-                    <label class="ig-field"><span>Before the prompt</span><textarea class="text_pole" rows="3" data-setting="prefix" placeholder="masterpiece, high_res, accurate anatomy"></textarea></label>
-                    <label class="ig-field"><span>After the prompt</span><textarea class="text_pole" rows="3" data-setting="suffix" placeholder="soft lighting, intricate detail"></textarea></label>
-                    <p class="ig-hint">Added to manual and AI-written prompts. Native macros work here too. Your draft stays editable without these additions.</p>
+                    <label class="ig-field"><span>At the beginning of every image prompt</span><textarea class="text_pole" rows="3" data-setting="prefix" placeholder="masterpiece, high_res"></textarea></label>
+                    <label class="ig-field"><span>At the end of every image prompt</span><textarea class="text_pole" rows="3" data-setting="suffix" placeholder="accurate anatomy, soft lighting"></textarea></label>
+                    <p class="ig-hint">These are fixed additions to the text sent to the image model. The final order is: beginning additions, your editable prompt, ending additions. Leave either field blank if you do not need it. Applies to manual and AI-written prompts; native macros work too.</p>
+                    <span class="ig-caption">Example final prompt with your additions</span>
+                    <p class="ig-hint ig-additions-example" data-additions-preview>your image prompt</p>
                 </div>
             </details>
 
@@ -114,7 +119,7 @@
                     <p class="ig-hint">Exports include prompts and rules, but no credentials or chat history. Importing turns automatic generation off until you enable it.</p>
                 </div>
             </details>
-            <p class="ig-footer">ImageGen+ 1.0.0 · by ZephyrThePink</p>
+            <p class="ig-footer">ImageGen+ 1.0.1 · by ZephyrThePink</p>
         </div>
     </div>
 </div>

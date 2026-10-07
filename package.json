@@ -1,12 +1,12 @@
 {
     "name": "imagegen-plus",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "private": true,
     "type": "module",
     "author": "ZephyrThePink",
     "license": "MIT",
     "scripts": {
-        "check": "node --check index.js && node --check core.js && node --check runtime.js && node --check providers/literouter.js",
+        "check": "node --check index.js && node --check core.js && node --check runtime.js && node --check providers/literouter.js && node --check server/index.mjs && node --check server/bridge.mjs && node --check server/shared.mjs",
         "test": "node --test tests/*.test.js"
     }
 }

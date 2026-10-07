@@ -35,6 +35,7 @@
 .ig-root .checkbox_label input { flex-shrink: 0; margin: 0; accent-color: var(--ig-accent); }
 .ig-hint, .ig-footer { font-size: 0.78em; opacity: 0.75; margin: 8px 0 12px; overflow-wrap: anywhere; }
 .ig-hint code { font-size: 0.95em; }
+.ig-additions-example { padding: 10px; border: 1px solid var(--ig-border); border-radius: 7px; white-space: pre-wrap; opacity: 1; }
 .ig-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .ig-sources { margin: 4px 0 14px; }
 .ig-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
