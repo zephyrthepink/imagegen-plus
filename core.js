@@ -1,7 +1,7 @@
 import { IMAGE_MODELS, createImagePayload } from './server/shared.mjs';
 
 export const MODULE = 'imagegen-plus';
-export const VERSION = '1.0.4';
+export const VERSION = '1.0.5';
 export const PROMPT_MAX_TOKENS = 350;
 
 export const STYLES = {

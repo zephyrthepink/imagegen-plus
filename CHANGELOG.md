@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.5
+
+- Shorten the README to installation and basic usage.
+- Remove the author credit from the README and settings footer.
+
 ## 1.0.4
 
 - Rename the extension to UIGE — Unremarkable Image Generation Extension, preserving existing settings and credentials.
