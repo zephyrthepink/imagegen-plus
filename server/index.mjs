@@ -10,7 +10,7 @@ export const info = {
 export async function init(router) {
     const { readSecret, SECRET_KEYS } = await import(pathToFileURL(path.resolve('src/endpoints/secrets.js')).href);
     const handlers = createHandlers({ readSecret, secretKey: SECRET_KEYS.CUSTOM });
-    router.get('/health', (_request, response) => response.json({ ready: true, version: '1.0.2' }));
+    router.get('/health', (_request, response) => response.json({ ready: true, version: '1.0.3' }));
     router.post('/models', handlers.models);
     router.post('/generate', handlers.generate);
 }

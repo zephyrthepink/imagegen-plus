@@ -1,7 +1,7 @@
-import { IMAGE_MODELS } from './server/shared.mjs';
+import { IMAGE_MODELS, createImagePayload } from './server/shared.mjs';
 
 export const MODULE = 'imagegen-plus';
-export const VERSION = '1.0.2';
+export const VERSION = '1.0.3';
 export const PROMPT_MAX_TOKENS = 350;
 
 export const STYLES = {
@@ -167,4 +167,11 @@ export function composeFinalPrompt(draft, settings, substitute = (value, macros)
     const expanded = substitute(settings.finalTemplate, { ig_prompt: marker }).trim();
     if (!expanded.includes(marker)) throw new Error('Include {{ig_prompt}} in your final image prompt template.');
     return expanded.replaceAll(marker, draft.trim());
+}
+
+export function applyImageOptions(settings, overrides = {}) {
+    const result = { ...settings };
+    for (const key of ['model', 'width', 'height', 'seed']) if (Object.hasOwn(overrides, key)) result[key] = overrides[key];
+    createImagePayload('Validate image options', result);
+    return result;
 }

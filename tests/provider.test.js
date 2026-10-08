@@ -145,9 +145,73 @@ test('missing manual keys stop requests and provider errors do not echo credenti
     await assert.rejects(() => liteRouter.generate('A lake', {
         settings, apiKey: 'private-key',
         fetchFn: async () => { calls++; return Response.json({ error: 'Echoed private-key' }, { status: 401 }); },
-    }), error => error.message.includes('Check your LiteRouter API key') && !error.message.includes('private-key'));
+    }), error => error.message.includes('Echoed [redacted]') && !error.message.includes('private-key'));
     assert.equal(calls, 1);
     await assert.rejects(() => liteRouter.models({ settings: { ...settings, directTransport: 'proxy' }, apiKey: 'private-key', fetchFn: async () => new Response('Disabled', { status: 404 }) }), /enableCorsProxy/);
+});
+
+test('proxy 402 errors show the upstream JSON message even without a content type, without retries', async () => {
+    let calls = 0;
+    await assert.rejects(() => liteRouter.generate('A lake', {
+        apiKey: 'private-key', settings: normalizeSettings({ imageConnection: 'manual', directTransport: 'proxy' }),
+        fetchFn: async () => { calls++; return new Response(JSON.stringify({ error: { message: 'Model requires Plus access.' } }), { status: 402 }); },
+    }), /proxy request failed \(402\).*Model requires Plus access/);
+    assert.equal(calls, 1);
+});
+
+test('direct and proxy use identical credentials and generation bodies and exclude unrelated local headers', async () => {
+    const requests = [];
+    for (const directTransport of ['direct', 'proxy']) {
+        await liteRouter.generate('A lake', {
+            apiKey: 'private-key', settings: normalizeSettings({ imageConnection: 'manual', directTransport, model: 'proteus', seed: '42' }),
+            headers: { 'X-CSRF-Token': 'csrf', Authorization: 'Local basic auth', 'X-App-Header': 'local-only' },
+            fetchFn: async (_, options) => { requests.push(options); return new Response(jpeg); },
+        });
+    }
+    assert.equal(requests[0].body, requests[1].body);
+    assert.equal(requests[0].headers.Authorization, requests[1].headers.Authorization);
+    assert.equal(requests[0].headers.Accept, 'image/jpeg');
+    assert.equal(requests[1].headers['X-App-Header'], undefined);
+    assert.equal(requests[1].headers['X-CSRF-Token'], 'csrf');
+});
+
+test('provider error messages are bounded and redact credentials; HTML pages are not shown', async () => {
+    for (const body of [JSON.stringify({ error: { message: 'private-key Bearer another-secret ' + 'x'.repeat(1000) } }), 'private-key plain error', '<html>private-key payment page</html>']) {
+        await assert.rejects(() => liteRouter.generate('A lake', {
+            apiKey: 'private-key', settings: normalizeSettings({ imageConnection: 'manual', directTransport: 'proxy' }),
+            fetchFn: async () => new Response(body, { status: 402 }),
+        }), error => !error.message.includes('private-key') && !error.message.includes('another-secret') && !error.message.includes('<html>') && error.message.length < 400);
+    }
+});
+
+test('SillyTavern Basic Auth proxy rejection falls back directly before any upstream generation', async () => {
+    const calls = [];
+    const image = await liteRouter.generate('A lake', {
+        apiKey: 'private-key', settings: normalizeSettings({ imageConnection: 'manual', directTransport: 'proxy' }),
+        headers: { 'X-CSRF-Token': 'local-csrf' },
+        fetchFn: async (url, options) => {
+            calls.push({ url, options });
+            if (url.startsWith('/proxy/')) return new Response('Unauthorized', { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="SillyTavern", charset="UTF-8"' } });
+            assert.equal(options.credentials, 'omit');
+            assert.equal(options.headers['X-CSRF-Token'], undefined);
+            return new Response(jpeg);
+        },
+    });
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].url, 'https://image.literouter.com/generate');
+    assert.equal(calls[0].options.body, calls[1].options.body);
+    assert.equal(image.transport, 'direct');
+});
+
+test('upstream 401 responses and Basic challenges from other realms never trigger generation retries', async () => {
+    for (const headers of [{}, { 'WWW-Authenticate': 'Basic realm="Another server"' }]) {
+        let calls = 0;
+        await assert.rejects(() => liteRouter.generate('A lake', {
+            apiKey: 'private-key', settings: normalizeSettings({ imageConnection: 'manual', directTransport: 'proxy' }),
+            fetchFn: async () => { calls++; return new Response('Unauthorized', { status: 401, headers }); },
+        }), /failed \(401\)/);
+        assert.equal(calls, 1);
+    }
 });
 
 test('manual network and cancellation failures give mode-specific errors', async () => {

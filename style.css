@@ -57,11 +57,41 @@
 .ig-studio-header > div { flex: 1; }
 .ig-studio-header h3 { font-size: 1.35em; margin: 2px 0 0; }
 .ig-eyebrow { display: block; font-size: 0.72em; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.09em; }
-.ig-draft-field { margin-top: 18px; }
+.popup.ig-studio-popup { width: min(960px, calc(100vw - 24px)); padding: 24px; }
+.ig-studio { min-width: 0; }
+.ig-studio-header { padding-bottom: 16px; border-bottom: 1px solid var(--ig-border); margin-bottom: 18px; }
+.ig-studio-header .ig-icon { flex-basis: 42px; height: 42px; font-size: 1.15em; border-radius: 12px; }
+.ig-studio-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.ig-compose-column { display: grid; gap: 14px; min-width: 0; }
+.ig-studio-card { min-width: 0; padding: 16px; border: 1px solid var(--ig-border); border-radius: 12px; background: var(--ig-surface); }
+.ig-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.ig-card-heading h4 { margin: 0; font-size: 0.95em; font-weight: 650; }
+.ig-card-heading small { font-size: 0.74em; opacity: 0.6; }
+.ig-studio .ig-field { margin-bottom: 10px; }
+.ig-studio-card .ig-field:last-child { margin-bottom: 0; }
+.ig-studio .text_pole { border-radius: 8px; padding: 10px; }
+.ig-draft-field { margin-top: 0; }
+.ig-draft-field textarea { min-height: 175px; }
+.ig-direction { margin-top: 12px; font-size: 0.85em; }
+.ig-direction summary { cursor: pointer; opacity: 0.75; }
+.ig-direction .ig-field { margin-top: 8px; }
+.ig-option-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 10px; }
+.ig-preview-card { min-height: 360px; }
+.ig-empty-preview { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; min-height: 310px; border: 1px dashed var(--ig-border); border-radius: 8px; color: color-mix(in srgb, var(--SmartThemeBodyColor, #ddd) 45%, transparent); font-size: 0.83em; }
+.ig-empty-preview > i { font-size: 2.8em; }
+.ig-studio-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--ig-border); }
+.ig-studio-footer .ig-status { margin: 0 0 12px; }
+.ig-studio-footer .ig-toolbar { justify-content: flex-end; margin: 0; }
+.ig-studio-footer .ig-primary { padding: 10px 18px; }
+.ig-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .ig-final-preview { border: 1px solid var(--ig-border); border-radius: 8px; padding: 8px 10px; font-size: 0.85em; margin: 12px 0; }
 .ig-final-preview summary { cursor: pointer; opacity: 0.8; }
 .ig-final-preview p { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 160px; overflow: auto; }
-.ig-result { margin-top: 16px; border: 1px solid var(--ig-border); border-radius: 10px; padding: 10px; }
-.ig-result img { display: block; width: 100%; max-height: 380px; object-fit: contain; border-radius: 6px; }
+.ig-result { min-width: 0; }
+.ig-image-frame { display: flex; align-items: center; justify-content: center; min-height: 280px; background: #0002; border-radius: 8px; overflow: hidden; }
+.ig-result img { display: block; width: 100%; max-height: 430px; object-fit: contain; }
+.ig-result-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.ig-result-actions .menu_button { flex: 1 1 auto; }
 .ig-input-preview pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.85em; padding: 12px; border: 1px solid var(--ig-border); border-radius: 8px; max-height: 40vh; overflow: auto; }
-@media (max-width: 480px) { .ig-grid { grid-template-columns: 1fr; gap: 0; } .popup.ig-popup { padding: 14px; } .ig-studio .ig-toolbar .menu_button { flex: 1 1 125px; } }
+@media (max-width: 740px) { .ig-studio-layout { grid-template-columns: 1fr; } .ig-preview-card { min-height: 0; } .ig-empty-preview { min-height: 170px; } }
+@media (max-width: 480px) { .ig-grid { grid-template-columns: 1fr; gap: 0; } .popup.ig-popup { padding: 14px; } .ig-studio-card { padding: 12px; } .ig-option-grid { grid-template-columns: 1fr; gap: 0; } .ig-studio .ig-toolbar .menu_button { flex: 1 1 125px; } }

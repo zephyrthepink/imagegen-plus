@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.3
+
+- Preserve manual LiteRouter keys across reloads in native account storage; remove only on explicit clearing.
+- Handle the native CORS proxy's Basic Auth / Bearer header collision with a direct fallback after a confirmed local SillyTavern auth rejection.
+- Show bounded, credential-redacted provider error details, including proxy 402 responses, without retrying upstream generation failures.
+- Redesign the studio into prompt, generation and image-preview panels with responsive layouts.
+- Add studio-only model, size, custom dimensions and seed controls, independent of saved defaults and automation.
+- Shorten settings help, including a single-sentence prompt-macro explanation.
+
 ## 1.0.2
 
 - Add optional manual LiteRouter API-key setup without the ImageGen+ server plugin, with direct browser requests or SillyTavern's built-in CORS proxy.

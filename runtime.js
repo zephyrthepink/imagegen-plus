@@ -1,4 +1,4 @@
-import { MODULE, PROMPT_MAX_TOKENS, buildPromptRequest, chatKey, cleanPromptResponse, composeFinalPrompt, expandMacros, matchesRule, ruleSignature } from './core.js';
+import { MODULE, PROMPT_MAX_TOKENS, applyImageOptions, buildPromptRequest, chatKey, cleanPromptResponse, composeFinalPrompt, expandMacros, matchesRule, ruleSignature } from './core.js';
 import { resolveImageProfile } from './server/shared.mjs';
 import { liteRouter } from './providers/literouter.js';
 
@@ -18,10 +18,11 @@ export class GenerationRuntime {
         const current = this.context();
         if (chatKey(current) !== chatKey(origin) || current.chat !== origin.chat) throw new DOMException('Chat changed', 'AbortError');
     }
-    async run(kind, { draft = '', focus = '', auto = false, exact = null } = {}) {
+    async run(kind, { draft = '', focus = '', auto = false, exact = null, imageOptions = {} } = {}) {
         if (this.busy) throw new Error('An ImageGen+ request is already running.');
         const settings = structuredClone(this.settings());
         if (!settings.enabled) throw new Error('Enable ImageGen+ first.');
+        const imageSettings = exact ? { ...settings, ...exact.settings } : kind === 'prompt' ? settings : applyImageOptions(settings, imageOptions);
         const origin = this.context();
         if (!chatKey(origin)) throw new Error('Open a character or group chat first.');
         const imageProfile = kind !== 'prompt' && settings.imageConnection === 'profile' ? resolveImageProfile(origin, settings.imageProfileId) : null;
@@ -51,7 +52,6 @@ export class GenerationRuntime {
             }
             phase('Generating image…');
             const prompt = exact?.prompt ?? composeFinalPrompt(written, settings, (text, macros) => expandMacros(origin, text, macros));
-            const imageSettings = exact ? { ...settings, ...exact.settings } : settings;
             const provider = PROVIDERS.get(imageSettings.provider);
             if (!provider) throw new Error('This image provider is not available.');
             const image = await provider.generate(prompt, { profile: imageProfile, apiKey, settings: imageSettings, signal, headers: origin.getRequestHeaders() });
@@ -60,7 +60,9 @@ export class GenerationRuntime {
             const url = await this.saveImage(image, origin);
             this.assertCurrent(origin, signal);
             const result = {
-                url, prompt, draft: written, model: image.model, seed: image.seed, requestId: image.requestId,
+                url, prompt, draft: written, model: image.model,
+                seed: image.seed ?? (imageSettings.seed === '' || imageSettings.seed == null ? null : String(imageSettings.seed)),
+                requestId: image.requestId, transport: image.transport,
                 createdAt: new Date().toISOString(), automatic: auto,
                 settings: { provider: imageSettings.provider, model: imageSettings.model, width: imageSettings.width, height: imageSettings.height, seed: image.seed ?? imageSettings.seed },
             };

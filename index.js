@@ -1,6 +1,6 @@
 import { getContext } from '../../../extensions.js';
 import { saveBase64AsFile } from '../../../utils.js';
-import { MODULE, VERSION, DEFAULTS, STYLES, NUMBER_LIMITS, buildPromptRequest, composeFinalPrompt, expandMacros, getPath, setPath, normalizeSettings } from './core.js';
+import { MODULE, VERSION, DEFAULTS, NUMBER_LIMITS, buildPromptRequest, composeFinalPrompt, expandMacros, getPath, setPath, normalizeSettings } from './core.js';
 import { AutoScheduler, GenerationRuntime, PROVIDERS } from './runtime.js';
 import { BRIDGE } from './providers/literouter.js';
 import { IMAGE_MODELS, imageProfiles, resolveImageProfile } from './server/shared.mjs';
@@ -11,13 +11,15 @@ let settingsRoot;
 let studioTemplate;
 let studioPopup;
 let studioRoot;
+let studioOptions;
+let studioSize = '';
 let runtime;
 let scheduler;
 let draft = '';
 let focus = '';
 let notice = 'Ready';
 let noticeError = false;
-// Manual credentials are deliberately kept outside settings, exports and chat metadata.
+// Stored separately in native account storage; never included in extension exports.
 let manualApiKey = '';
 
 const context = () => getContext();
@@ -68,10 +70,10 @@ async function checkBridge() {
     try {
         const response = await fetch(`${BRIDGE}/health`, { headers: context().getRequestHeaders(), cache: 'no-store' });
         if (!response.ok || !(await response.json()).ready) throw new Error('Unavailable');
-        status.textContent = 'Profile bridge ready. Saved credentials stay on the server.';
+        status.textContent = 'Profile bridge ready.';
         settingsRoot.querySelector('[data-bridge-setup]').open = false;
     } catch {
-        status.textContent = 'Install the profile bridge once to use saved connection credentials.';
+        status.textContent = 'Profile bridge not installed.';
         settingsRoot.querySelector('[data-bridge-setup]').open = true;
     }
 }
@@ -85,7 +87,6 @@ function renderSettings() {
     settingsRoot.querySelector('[data-custom-template]').hidden = settings.promptMode !== 'custom';
     settingsRoot.querySelector('[data-profile-connection]').hidden = settings.imageConnection !== 'profile';
     settingsRoot.querySelector('[data-manual-connection]').hidden = settings.imageConnection !== 'manual';
-    settingsRoot.querySelector('[data-style-description]').textContent = STYLES[settings.style].instructions || 'Your instructions below define the writing style.';
     const size = settingsRoot.querySelector('[data-size]');
     size.value = [...size.options].some(option => option.value === `${settings.width}x${settings.height}`) ? `${settings.width}x${settings.height}` : '';
     populateProfiles();
@@ -106,6 +107,7 @@ function renderState() {
             if (['write', 'scene', 'generate', 'repeat'].includes(button.dataset.action)) button.disabled = runtime.busy || !settings.enabled;
             if (button.dataset.action === 'cancel') button.hidden = !runtime.busy;
         }
+        for (const input of root.querySelectorAll('[data-image-option], [data-studio-size]')) input.disabled = runtime.busy;
     }
     const badge = settingsRoot.querySelector('.ig-badge');
     badge.textContent = settings.enabled ? `Enabled · ${VERSION}` : 'Disabled';
@@ -136,16 +138,31 @@ function renderStudio() {
     studioRoot.querySelector('[data-draft]').value = draft;
     studioRoot.querySelector('[data-focus]').value = focus;
     studioRoot.querySelector('[data-final-prompt]').textContent = finalPrompt();
-    studioRoot.querySelector('[data-studio-model]').textContent = settings.model;
+    renderStudioOptions();
     const result = currentResult();
     studioRoot.querySelector('.ig-result').hidden = !result;
+    studioRoot.querySelector('[data-empty-preview]').hidden = Boolean(result);
     if (result) {
         studioRoot.querySelector('[data-image]').src = result.url;
         studioRoot.querySelector('[data-image-link]').href = result.url;
         studioRoot.querySelector('[data-download]').href = result.url;
-        studioRoot.querySelector('[data-result-meta]').textContent = `${result.model} · ${result.settings.width} × ${result.settings.height} · seed ${result.seed ?? 'not exposed by provider'}${result.requestId ? ` · request ${result.requestId}` : ''}`;
+        studioRoot.querySelector('[data-result-meta]').textContent = `${result.model} · ${result.settings.width} × ${result.settings.height} · seed ${result.seed ?? 'random'}`;
     }
     renderState();
+}
+
+function resetStudioOptions() {
+    studioOptions = Object.fromEntries(['model', 'width', 'height', 'seed'].map(key => [key, settings[key]]));
+    const dimensions = `${settings.width}x${settings.height}`;
+    studioSize = ['1024x1024', '768x1024', '1024x768', '512x512'].includes(dimensions) ? dimensions : '';
+}
+
+function renderStudioOptions() {
+    if (!studioRoot || !studioOptions) return;
+    for (const input of studioRoot.querySelectorAll('[data-image-option]')) input.value = studioOptions[input.dataset.imageOption];
+    const size = studioRoot.querySelector('[data-studio-size]');
+    size.value = studioSize;
+    studioRoot.querySelector('[data-custom-size]').hidden = size.value !== '';
 }
 
 async function showPopup(content, options = {}) {
@@ -158,6 +175,9 @@ async function showPopup(content, options = {}) {
 async function openStudio() {
     if (studioPopup) return;
     studioRoot = fromHtml(studioTemplate);
+    resetStudioOptions();
+    const modelSelect = studioRoot.querySelector('[data-image-option=model]');
+    modelSelect.replaceChildren(...IMAGE_MODELS.map(model => new Option(model.id, model.id)));
     studioRoot.addEventListener('click', event => {
         const button = event.target.closest('[data-action]');
         if (button) void handleAction(button.dataset.action, button);
@@ -167,12 +187,25 @@ async function openStudio() {
         studioRoot.querySelector('[data-final-prompt]').textContent = finalPrompt();
     });
     studioRoot.querySelector('[data-focus]').addEventListener('input', event => { focus = event.target.value; });
+    studioRoot.addEventListener('input', event => {
+        const input = event.target;
+        const key = input.dataset.imageOption;
+        if (!key) return;
+        studioOptions[key] = ['width', 'height'].includes(key) ? (input.value === '' ? NaN : Number(input.value)) : input.value;
+    });
+    studioRoot.querySelector('[data-studio-size]').addEventListener('change', event => {
+        studioSize = event.target.value;
+        if (event.target.value) {
+            [studioOptions.width, studioOptions.height] = event.target.value.split('x').map(Number);
+            renderStudioOptions();
+        } else studioRoot.querySelector('[data-custom-size]').hidden = false;
+    });
     const ctx = context();
     studioPopup = new ctx.Popup(studioRoot, ctx.POPUP_TYPE.TEXT, '', { okButton: 'Close', allowVerticalScrolling: true });
-    studioPopup.dlg.classList.add('ig-popup');
+    studioPopup.dlg.classList.add('ig-popup', 'ig-studio-popup');
     renderStudio();
     try { await studioPopup.show(); }
-    finally { studioRoot = null; studioPopup = null; }
+    finally { studioRoot = null; studioPopup = null; studioOptions = null; }
 }
 
 async function blobBase64(blob) {
@@ -206,13 +239,13 @@ async function publishImage(result, origin) {
     renderStudio();
 }
 
-async function generate(kind, automatic = false, exact = null, inputDraft = null) {
+async function generate(kind, automatic = false, exact = null, inputDraft = null, imageOptions = {}) {
     if (runtime.busy) throw new Error('An ImageGen+ request is already running.');
     notify('Starting…');
     try {
-        const result = await runtime.run(kind, { draft: inputDraft ?? draft, focus: automatic ? '' : focus, auto: automatic, exact });
+        const result = await runtime.run(kind, { draft: inputDraft ?? draft, focus: automatic ? '' : focus, auto: automatic, exact, imageOptions });
         if (result.draft) draft = result.draft;
-        notify(kind === 'prompt' ? 'Prompt ready. Edit the draft, then generate your image.' : 'Image saved to this chat.');
+        notify(kind === 'prompt' ? 'Prompt ready.' : result.transport === 'direct' && settings.directTransport === 'proxy' ? 'Image saved · direct request (proxy blocked by Basic Auth).' : 'Image saved to this chat.');
         renderStudio();
         if (automatic) globalThis.toastr?.success('A new scene image was added to the chat.', 'ImageGen+');
         return result;
@@ -250,11 +283,12 @@ async function previewInput() {
 
 async function handleAction(action, button) {
     try {
+        const imageOptions = button?.closest('.ig-studio') ? { ...studioOptions } : {};
         switch (action) {
             case 'studio': await openStudio(); break;
             case 'write': await generate('prompt'); break;
-            case 'scene': await generate('scene'); break;
-            case 'generate': await generate('image'); break;
+            case 'scene': await generate('scene', false, null, null, imageOptions); break;
+            case 'generate': await generate('image', false, null, null, imageOptions); break;
             case 'cancel': runtime.cancel(); scheduler.stop(); break;
             case 'reuse': draft = currentResult()?.draft || ''; renderStudio(); break;
             case 'repeat': {
@@ -267,7 +301,7 @@ async function handleAction(action, button) {
                 button.disabled = true;
                 const profile = settings.imageConnection === 'profile' ? resolveImageProfile(context(), settings.imageProfileId) : null;
                 const models = await PROVIDERS.get(settings.provider).models({ profile, apiKey: manualApiKey, settings: structuredClone(settings), headers: context().getRequestHeaders() });
-                settingsRoot.querySelector('[data-model-status]').textContent = `${models.length} curated models · ${models.filter(model => model.listed).length} confirmed by LiteRouter. Availability depends on your plan.`;
+                settingsRoot.querySelector('[data-model-status]').textContent = `${models.filter(model => model.listed).length} / ${models.length} models available.`;
                 notify('Image models refreshed.');
                 break;
             }
@@ -276,6 +310,8 @@ async function handleAction(action, button) {
                 runtime.cancel();
                 scheduler.stop();
                 manualApiKey = '';
+                context().accountStorage.removeItem(`${MODULE}:manual-api-key`);
+                context().accountStorage.removeItem(`${MODULE}:api-key`);
                 settingsRoot.querySelector('[data-api-key]').value = '';
                 notify('Manual API key cleared.');
                 break;
@@ -299,7 +335,10 @@ async function handleAction(action, button) {
 }
 
 function bindSettings() {
-    settingsRoot.querySelector('[data-api-key]').addEventListener('input', event => { manualApiKey = event.target.value; });
+    settingsRoot.querySelector('[data-api-key]').addEventListener('input', event => {
+        manualApiKey = event.target.value;
+        context().accountStorage.setItem(`${MODULE}:manual-api-key`, manualApiKey);
+    });
     settingsRoot.addEventListener('input', event => {
         const element = event.target;
         const path = element.dataset.setting;
@@ -323,7 +362,7 @@ function bindSettings() {
         if (path === 'finalTemplate') renderAdditionsPreview();
         if (path === 'imageConnection') { runtime.cancel(); scheduler.stop(); if (value === 'profile') void checkBridge(); }
         if (['imageConnection', 'promptMode', 'style', 'width', 'height'].includes(path)) renderSettings();
-        else { renderState(); if (studioRoot) { studioRoot.querySelector('[data-final-prompt]').textContent = finalPrompt(); studioRoot.querySelector('[data-studio-model]').textContent = settings.model; } }
+        else { renderState(); if (studioRoot) studioRoot.querySelector('[data-final-prompt]').textContent = finalPrompt(); }
     });
     settingsRoot.addEventListener('change', event => {
         const element = event.target;
@@ -395,6 +434,7 @@ function bindEvents() {
         scheduler.setGroupBusy(false);
         draft = '';
         focus = '';
+        if (studioRoot) resetStudioOptions();
         notice = 'Ready';
         noticeError = false;
         scheduler.reset();
@@ -424,10 +464,10 @@ async function initialize() {
     const ctx = context();
     settings = normalizeSettings(ctx.extensionSettings[MODULE]);
     ctx.extensionSettings[MODULE] = settings;
-    // One-time migration removes the obsolete v1.0.0 credential copy.
-    ctx.accountStorage.removeItem(`${MODULE}:api-key`);
+    manualApiKey = ctx.accountStorage.getItem(`${MODULE}:manual-api-key`) ?? ctx.accountStorage.getItem(`${MODULE}:api-key`) ?? '';
     const [html, studio] = await Promise.all([loadAsset('settings.html'), loadAsset('studio.html')]);
     settingsRoot = fromHtml(html);
+    settingsRoot.querySelector('[data-api-key]').value = manualApiKey;
     studioTemplate = studio;
     document.getElementById('extensions_settings2').append(settingsRoot);
     runtime = new GenerationRuntime({

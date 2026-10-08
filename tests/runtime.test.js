@@ -167,7 +167,7 @@ function runtimeFixture(options = {}) {
     };
     const providerId = 'test-provider';
     PROVIDERS.set(providerId, {
-        generate: async (prompt, params) => { payload = { prompt, params }; if (options.provider) await options.provider(); return { blob: new Blob(['image']), model: 'test-model', seed: '99', format: 'jpg' }; },
+        generate: async (prompt, params) => { payload = { prompt, params }; if (options.provider) await options.provider(); return { blob: new Blob(['image']), model: 'test-model', seed: Object.hasOwn(options, 'responseSeed') ? options.responseSeed : '99', format: 'jpg' }; },
     });
     const runtime = new GenerationRuntime({
         ...f, settings: () => ({ ...f.settings(), provider: providerId }),
@@ -309,4 +309,40 @@ test('missing manual credentials prevent scene-writing costs but do not prevent 
     assert.equal(result.draft, 'A scene');
     assert.equal(writes, 1);
     assert.equal(f.payload(), undefined);
+});
+
+test('studio options affect only their request and leave saved defaults and later generations unchanged', async () => {
+    const f = runtimeFixture();
+    const defaults = structuredClone(f.settings());
+    const imageOptions = { model: 'proteus', width: 768, height: 1024, seed: '42', imageConnection: 'manual', timeoutSeconds: 600 };
+    const result = await f.runtime.run('image', { draft: 'A scene', imageOptions });
+    assert.equal(f.payload().params.settings.model, 'proteus');
+    assert.equal(f.payload().params.settings.width, 768);
+    assert.equal(f.payload().params.settings.seed, '42');
+    assert.equal(f.payload().params.settings.imageConnection, 'profile');
+    assert.equal(f.payload().params.settings.timeoutSeconds, defaults.timeoutSeconds);
+    assert.equal(result.settings.width, 768);
+    assert.deepEqual(f.settings(), defaults);
+    await f.runtime.run('image', { draft: 'Another scene' });
+    assert.equal(f.payload().params.settings.model, defaults.model);
+    assert.equal(f.payload().params.settings.width, defaults.width);
+    assert.equal(f.payload().params.settings.seed, defaults.seed);
+});
+
+test('invalid temporary image options fail before prompt writing or provider requests', async () => {
+    let writes = 0;
+    const f = runtimeFixture({ write: () => { writes++; return 'A scene'; } });
+    for (const imageOptions of [{ width: 0 }, { width: NaN }, { model: 'text-model' }, { seed: '-1' }]) await assert.rejects(() => f.runtime.run('scene', { imageOptions }));
+    assert.equal(writes, 0);
+    assert.equal(f.payload(), undefined);
+    assert.equal(f.runtime.busy, false);
+});
+
+test('fixed studio seeds remain available for preview and repeat when the native proxy omits response metadata', async () => {
+    const f = runtimeFixture({ responseSeed: null });
+    const result = await f.runtime.run('image', { draft: 'A scene', imageOptions: { seed: '0' } });
+    assert.equal(result.seed, '0');
+    assert.equal(result.settings.seed, '0');
+    const random = await f.runtime.run('image', { draft: 'Another scene', imageOptions: { seed: '' } });
+    assert.equal(random.seed, null);
 });

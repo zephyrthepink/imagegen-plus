@@ -2,11 +2,11 @@
 
 Turn your SillyTavern conversations into images with editable AI-written prompts, flexible automatic generation, and LiteRouter image generation.
 
-**Version 1.0.2 · Author: ZephyrThePink · MIT license**
+**Version 1.0.3 · Author: ZephyrThePink · MIT license**
 
 ## Features
 
-- **Image studio:** write your own prompt, ask an AI to draft one, or illustrate the latest scene in one click. Preview the final prompt before submitting it.
+- **Image studio:** organized prompt, generation and preview panels. Write your own prompt, ask an AI to draft one, or illustrate the latest scene in one click. Override model, size and seed for studio requests without changing saved defaults.
 - **LiteRouter image generation:** reuse a saved LiteRouter connection profile or enter your own API key without installing a server plugin. Select from 23 curated image models, refresh availability, choose square/portrait/landscape sizes, set optional seeds and cancel requests.
 - **Intelligent prompt writing:** use a saved SillyTavern Connection Manager profile, including chat and text completion profiles. Your active chat connection is not switched.
 - **Choose your sources:** recent conversation, character description, user/persona description, scenario, personality and example dialogue. Choose how many recent messages to include. Selected descriptions and messages are included in full. Group chats use SillyTavern's current character-card resolution.
@@ -31,9 +31,11 @@ Requires **SillyTavern 1.19.0 or newer** and a LiteRouter account. Intelligent p
 
 ### Manual API key — no ImageGen+ server plugin
 
-Choose **Manual API key**, paste your LiteRouter key, and leave the transport on **Direct browser request**. The key stays in memory for the current page session; enter it again after reloading, or press **Clear API key** to remove it. It is not saved to extension settings, browser storage, image metadata or exports. Requests use the fixed LiteRouter image host and never fetch a saved profile's key.
+Choose **Manual API key**, paste your LiteRouter key, and leave the transport on **Direct browser request**. The key is retained in SillyTavern's account storage across reloads. Press **Clear API key** to remove it explicitly. It stays separate from extension configuration exports and image metadata. Requests use the fixed LiteRouter image host and never fetch a saved profile's key.
 
 If your browser blocks cross-origin requests, choose **SillyTavern's built-in CORS proxy**, set `enableCorsProxy: true` in SillyTavern's `config.yaml`, and restart. This uses SillyTavern's existing proxy, with no ImageGen+ server plugin. The proxy transport sends the manually entered key through your SillyTavern server to LiteRouter. Model refresh uses the selected transport as well.
+
+SillyTavern Basic Auth and LiteRouter Bearer authentication share the Authorization header, so the native proxy cannot carry both. If SillyTavern returns its own `401` Basic challenge, ImageGen+ falls back to a direct request with the same payload. This happens before the proxy contacts LiteRouter. Provider errors, including `402`, are shown with a redacted message and are not retried. If direct requests are also blocked, use the saved-profile bridge.
 
 ### Saved connection profile
 
@@ -41,9 +43,11 @@ Download **ImageGenPlus-Server-Bridge.zip** from the [latest release](https://gi
 
 Choose a saved **Custom (OpenAI-compatible)** profile using `https://api.literouter.com/v1`. Its existing saved credentials are reused for models and images. The profile's chat model is unchanged. The bridge reads the authenticated user's saved Custom key using the profile's secret ID, matching native SillyTavern behavior. Keys stay on the server; enabling key exposure or the CORS proxy is unnecessary.
 
-Upgrading from 1.0.0 removes its obsolete stored credential copy. Configuration exports contain profile IDs, templates and rules, but no keys or chat history. Selecting manual credentials does not change how the prompt writer uses its connection profile.
+Stored manual keys are preserved when updating or importing configuration. Configuration exports contain profile IDs, templates and rules, but no keys or chat history. Selecting manual credentials does not change how the prompt writer uses its connection profile.
 
 ## Image studio
+
+The **Generation** panel controls model, image size, custom width/height and seed for studio requests. These choices reset to your saved defaults when you reopen the studio or switch chats. They do not affect automatic images or slash commands. Image metadata retains the options used so exact repeats remain available.
 
 - **Write prompt** drafts a prompt from your configured sources and optional scene direction. Edit it before pressing **Generate image**.
 - **Illustrate scene** writes a prompt and immediately generates an image.
@@ -134,7 +138,7 @@ Implemented against [LiteRouter's image generation documentation](https://docs.l
 - Result: binary JPEG, saved through SillyTavern's native image upload API.
 - Optional response headers: `X-Model`, `X-Seed`, `X-Request-ID`, forwarded by the bridge for reproducibility and debugging.
 
-In saved-profile mode, the browser sends the chosen profile's ID, Custom API source, endpoint and saved secret ID to the bridge. The authenticated user's account directories determine the key lookup. The bridge sends the key only to the fixed image host, never to a URL supplied by the browser. In manual mode, the browser sends the key in the Authorization header to the fixed image host directly or through SillyTavern's built-in proxy. Direct requests omit local cookies and CSRF headers. The extension never retries a generation automatically or switches credential modes after an error.
+In saved-profile mode, the browser sends the chosen profile's ID, Custom API source, endpoint and saved secret ID to the bridge. The authenticated user's account directories determine the key lookup. The bridge sends the key only to the fixed image host, never to a URL supplied by the browser. In manual mode, the browser sends the key in the Authorization header to the fixed image host directly or through SillyTavern's built-in proxy. Direct requests omit local cookies and CSRF headers. Only a confirmed local SillyTavern Basic Auth rejection triggers a direct fallback; failed upstream generations are never retried and credential modes never switch automatically.
 
 The model selector contains the 23 image models from the supplied LiteRouter catalog: `2dn-pony-v2`, `aniflatmix-anime`, `animagine-xl-31`, `artiwaifu-diffusion`, `atomix-xl`, `boltning`, `crystal-clear-xl-lightning`, `cyberrealistic-pony-v9`, `cyberrealistic-xl`, `dreamshaper-v1`, `dreamshaper-xl`, `fast-sdxl`, `fluently-xl`, `gen-illustrious`, `hassaku`, `hidream-i1-fast`, `p-image`, `persona`, `proteus`, `prunaai`, `realpony-xl`, `rev-animated` and `sdxl-turbo`. Plan and credit labels reflect that reference catalog. Refresh checks which curated IDs the image endpoint currently lists; it never adds chat models or removes your configured choice. Access depends on the account plan. The curated selector remains available if refresh fails.
 
