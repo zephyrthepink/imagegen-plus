@@ -8,7 +8,8 @@ function fixture(overrides = {}) {
     let current = {
         chatId: 'chat-a', characterId: 0, name1: 'User', name2: 'Mira', chat: [], chatMetadata: {},
         characters: [{ description: 'A mage' }], extensionSettings: { connectionManager: { selectedProfile: 'profile-1', profiles: [{ id: 'profile-1', api: 'custom', 'api-url': 'https://api.literouter.com/v1', 'secret-id': 'saved-key-id' }] } },
-        substituteParams: text => text, substituteParamsExtended: text => text,
+        substituteParams: (text, options = {}) => text.replace(/{{(.*?)}}/g, (_, key) => options.dynamicMacros?.[key] ?? `{{${key}}}`),
+        substituteParamsExtended(text, macros) { return this.substituteParams(text, { dynamicMacros: macros }); },
         getRequestHeaders: () => ({}),
     };
     return { context: () => current, settings: () => settings, switchChat: () => { current = { ...current, chatId: 'chat-b', chat: [], chatMetadata: {} }; }, replaceSettings: value => { settings = normalizeSettings(value); } };
@@ -170,6 +171,7 @@ function runtimeFixture(options = {}) {
     });
     const runtime = new GenerationRuntime({
         ...f, settings: () => ({ ...f.settings(), provider: providerId }),
+        apiKey: () => options.apiKey ?? '',
         saveImage: async () => { saved++; if (options.save) await options.save(); return '/image.jpg'; },
         publishImage: async () => { published++; },
     });
@@ -283,4 +285,28 @@ test('concurrent requests are rejected instead of duplicated', async () => {
     release();
     await request;
     assert.equal(f.saved(), 1);
+});
+
+test('manual generation works without saved image profiles and never stores the key in image results', async () => {
+    const f = runtimeFixture({ settings: { imageConnection: 'manual', finalTemplate: 'quality\n{{ig_prompt}}\nlighting' }, apiKey: 'manual-private-key' });
+    f.context().extensionSettings.connectionManager.profiles = [];
+    const result = await f.runtime.run('image', { draft: 'A moonlit lake' });
+    assert.equal(f.payload().params.profile, null);
+    assert.equal(f.payload().params.apiKey, 'manual-private-key');
+    assert.equal(f.payload().prompt, 'quality\nA moonlit lake\nlighting');
+    assert.equal(JSON.stringify(result).includes('manual-private-key'), false);
+    assert.equal(JSON.stringify(f.settings()).includes('manual-private-key'), false);
+    assert.equal(f.saved(), 1);
+});
+
+test('missing manual credentials prevent scene-writing costs but do not prevent prompt-only drafting', async () => {
+    let writes = 0;
+    const f = runtimeFixture({ settings: { imageConnection: 'manual' }, write: () => { writes++; return 'A scene'; } });
+    await assert.rejects(() => f.runtime.run('scene'), /Enter your LiteRouter API key/);
+    assert.equal(writes, 0);
+    assert.equal(f.runtime.busy, false);
+    const result = await f.runtime.run('prompt');
+    assert.equal(result.draft, 'A scene');
+    assert.equal(writes, 1);
+    assert.equal(f.payload(), undefined);
 });

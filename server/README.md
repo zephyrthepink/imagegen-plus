@@ -2,6 +2,8 @@
 
 This small SillyTavern server plugin reuses a saved Custom connection profile's API key for LiteRouter images. The key stays on the server. It uses SillyTavern's native, account-scoped secret lookup and sends requests only to `https://image.literouter.com`.
 
+**This plugin is optional.** To use ImageGen+ without it, choose **Manual API key** in Connection settings and enter your LiteRouter key. Manual requests use the browser directly or SillyTavern's built-in CORS proxy. The intelligent prompt writer uses native Connection Manager and needs no ImageGen+ server plugin.
+
 ## One-time installation
 
 1. Download **ImageGenPlus-Server-Bridge.zip** from the [latest release](https://github.com/zephyrthepink/imagegen-plus/releases/latest) and extract it into your **SillyTavern root folder**. It adds `plugins/imagegen-plus/`.

@@ -90,3 +90,75 @@ test('model refresh annotates the curated list and never adds unrelated text mod
     assert.equal(models.find(model => model.id === 'sdxl-turbo').listed, true);
     assert.equal(models.some(model => model.id === 'text-model'), false);
 });
+
+test('manual keys generate directly without a profile, bridge, local cookies or CSRF headers', async () => {
+    let actual;
+    const image = await liteRouter.generate('A lake', {
+        apiKey: ' manual-test-key ', settings: normalizeSettings({ imageConnection: 'manual' }),
+        headers: { 'X-CSRF-Token': 'local-csrf' },
+        fetchFn: async (url, options) => { actual = { url, options }; return new Response(jpeg); },
+    });
+    assert.equal(actual.url, 'https://image.literouter.com/generate');
+    assert.equal(actual.options.headers.Authorization, 'Bearer manual-test-key');
+    assert.equal(actual.options.headers['X-CSRF-Token'], undefined);
+    assert.equal(actual.options.credentials, 'omit');
+    assert.equal(actual.options.redirect, 'error');
+    assert.deepEqual(JSON.parse(actual.options.body), { prompt: 'A lake', model: 'sdxl-turbo', width: 1024, height: 1024 });
+    assert.equal(image.blob.type, 'image/jpeg');
+});
+
+test('manual model refresh uses authenticated GET and supports the documented catalog response shapes', async () => {
+    for (const body of [{ models: ['sdxl-turbo'] }, { data: [{ id: 'sdxl-turbo' }] }, ['sdxl-turbo']]) {
+        const models = await liteRouter.models({
+            apiKey: 'manual-test-key', settings: normalizeSettings({ imageConnection: 'manual' }),
+            fetchFn: async (url, options) => {
+                assert.equal(url, 'https://image.literouter.com/models');
+                assert.equal(options.method, 'GET');
+                assert.equal(options.body, undefined);
+                assert.equal(options.headers.Authorization, 'Bearer manual-test-key');
+                return Response.json(body);
+            },
+        });
+        assert.equal(models.find(model => model.id === 'sdxl-turbo').listed, true);
+        assert.equal(models.length, 23);
+    }
+});
+
+test('manual proxy requests use the existing SillyTavern proxy with a fixed LiteRouter destination', async () => {
+    await liteRouter.generate('A lake', {
+        apiKey: 'manual-test-key', settings: normalizeSettings({ imageConnection: 'manual', directTransport: 'proxy' }),
+        headers: { 'X-CSRF-Token': 'local-csrf' },
+        fetchFn: async (url, options) => {
+            assert.equal(url, '/proxy/https://image.literouter.com/generate');
+            assert.equal(options.headers['X-CSRF-Token'], 'local-csrf');
+            assert.equal(options.headers.Authorization, 'Bearer manual-test-key');
+            assert.equal(options.credentials, 'same-origin');
+            return new Response(jpeg);
+        },
+    });
+});
+
+test('missing manual keys stop requests and provider errors do not echo credentials or retry', async () => {
+    const settings = normalizeSettings({ imageConnection: 'manual' });
+    await assert.rejects(() => liteRouter.generate('A lake', { settings, fetchFn: () => assert.fail('must not send') }), /Enter your LiteRouter API key/);
+    let calls = 0;
+    await assert.rejects(() => liteRouter.generate('A lake', {
+        settings, apiKey: 'private-key',
+        fetchFn: async () => { calls++; return Response.json({ error: 'Echoed private-key' }, { status: 401 }); },
+    }), error => error.message.includes('Check your LiteRouter API key') && !error.message.includes('private-key'));
+    assert.equal(calls, 1);
+    await assert.rejects(() => liteRouter.models({ settings: { ...settings, directTransport: 'proxy' }, apiKey: 'private-key', fetchFn: async () => new Response('Disabled', { status: 404 }) }), /enableCorsProxy/);
+});
+
+test('manual network and cancellation failures give mode-specific errors', async () => {
+    await assert.rejects(() => liteRouter.generate('A lake', {
+        settings: normalizeSettings({ imageConnection: 'manual' }), apiKey: 'private-key',
+        fetchFn: async () => { throw new TypeError('Failed to fetch'); },
+    }), /cross-origin/);
+    const controller = new AbortController();
+    controller.abort();
+    await assert.rejects(() => liteRouter.generate('A lake', {
+        settings: normalizeSettings({ imageConnection: 'manual' }), apiKey: 'private-key', signal: controller.signal,
+        fetchFn: async (_, options) => { options.signal.throwIfAborted(); },
+    }), { name: 'AbortError' });
+});

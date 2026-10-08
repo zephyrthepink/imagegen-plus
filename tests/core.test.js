@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS, MODULE, normalizeSettings, matchesRule, chatKey, collectSources, buildPromptRequest, cleanPromptResponse, composeFinalPrompt } from '../core.js';
+import { DEFAULTS, MODULE, normalizeSettings, matchesRule, chatKey, collectSources, buildPromptRequest, cleanPromptResponse, composeFinalPrompt, expandMacros } from '../core.js';
 
 function fixture() {
     return {
@@ -128,7 +128,32 @@ test('AI responses remove reasoning and wrappers but reject missing content', ()
 test('fixed additions apply to a draft exactly once without changing the draft', () => {
     const settings = normalizeSettings({ prefix: 'masterpiece', suffix: '{{char}}, accurate anatomy' });
     const draft = 'A lake';
-    assert.equal(composeFinalPrompt(draft, settings, text => text.replace('{{char}}', 'Mira')), 'masterpiece, A lake, Mira, accurate anatomy');
+    assert.equal(settings.finalTemplate, 'masterpiece, {{ig_prompt}}, {{char}}, accurate anatomy');
+    assert.equal(Object.hasOwn(settings, 'prefix'), false);
+    assert.equal(composeFinalPrompt(draft, settings, (text, macros) => expandMacros(fixture(), text, macros)), 'masterpiece, A lake, Mira, accurate anatomy');
     assert.equal(draft, 'A lake');
     assert.throws(() => composeFinalPrompt('', settings), /Write or generate/);
+});
+
+test('final templates allow arbitrary prompt placement, repeated references, native macros and line breaks', () => {
+    const settings = normalizeSettings({ finalTemplate: '{{char}} / {{user}}\naccurate anatomy\n{{ig_prompt}}\nmasterpiece\n{{ig_prompt}}' });
+    assert.equal(composeFinalPrompt('A lake', settings, (text, macros) => expandMacros(fixture(), text, macros)), 'Mira / Zephyr\naccurate anatomy\nA lake\nmasterpiece\nA lake');
+    assert.throws(() => composeFinalPrompt('A lake', normalizeSettings({ finalTemplate: 'masterpiece' })), /Include {{ig_prompt}}/);
+});
+
+test('AI and manual draft text is inserted literally and is never interpreted as native macros', () => {
+    const settings = normalizeSettings({ finalTemplate: '{{char}}: {{ig_prompt}}' });
+    const draft = 'A sign saying {{char}} {{setvar::important::changed}} {{ig_prompt}}';
+    assert.equal(composeFinalPrompt(draft, settings, (text, macros) => expandMacros(fixture(), text, macros)), `Mira: ${draft}`);
+});
+
+test('an explicit final template takes precedence over legacy additions and connection modes are validated', () => {
+    const settings = normalizeSettings({ finalTemplate: '{{ig_prompt}}, modern tags', prefix: 'old tags', imageConnection: 'manual', directTransport: 'proxy', apiKey: 'never persist' });
+    assert.equal(settings.finalTemplate, '{{ig_prompt}}, modern tags');
+    assert.equal(settings.imageConnection, 'manual');
+    assert.equal(settings.directTransport, 'proxy');
+    assert.equal(Object.hasOwn(settings, 'apiKey'), false);
+    const invalid = normalizeSettings({ imageConnection: 'other', directTransport: 'other' });
+    assert.equal(invalid.imageConnection, 'profile');
+    assert.equal(invalid.directTransport, 'direct');
 });

@@ -1,7 +1,7 @@
 import { IMAGE_MODELS } from './server/shared.mjs';
 
 export const MODULE = 'imagegen-plus';
-export const VERSION = '1.0.1';
+export const VERSION = '1.0.2';
 export const PROMPT_MAX_TOKENS = 350;
 
 export const STYLES = {
@@ -20,6 +20,8 @@ export const DEFAULTS = {
     height: 1024,
     seed: '',
     timeoutSeconds: 120,
+    imageConnection: 'profile',
+    directTransport: 'direct',
     imageProfileId: '',
     profileId: '',
     promptMode: 'sources',
@@ -29,8 +31,7 @@ export const DEFAULTS = {
     instructions: '',
     exclusions: '',
     template: 'Create an image prompt for the current scene between {{user}} and {{char}}.\n\n{{ig_character}}\n{{ig_persona}}\n{{ig_scenario}}\n\nRecent conversation:\n{{ig_history}}',
-    prefix: '',
-    suffix: '',
+    finalTemplate: '{{ig_prompt}}',
     auto: { enabled: false, every: 3, role: 'assistant', names: '', cooldownSeconds: 30 },
 };
 
@@ -60,7 +61,11 @@ export function normalizeSettings(raw = {}) {
         const number = getPath(raw, path);
         if (Number.isInteger(number) && number >= min && number <= max) setPath(value, path, number);
     }
-    for (const [key, choices] of Object.entries({ provider: ['literouter'], promptMode: ['sources', 'custom'], style: Object.keys(STYLES) })) {
+    // Preserve the order of older beginning/end additions without retaining old fields.
+    if (typeof raw.finalTemplate !== 'string') {
+        value.finalTemplate = [raw.prefix, '{{ig_prompt}}', raw.suffix].filter(part => typeof part === 'string' && part.trim()).map(part => part.trim()).join(', ');
+    }
+    for (const [key, choices] of Object.entries({ provider: ['literouter'], imageConnection: ['profile', 'manual'], directTransport: ['direct', 'proxy'], promptMode: ['sources', 'custom'], style: Object.keys(STYLES) })) {
         if (!choices.includes(value[key])) value[key] = DEFAULTS[key];
     }
     if (!['assistant', 'user', 'all'].includes(value.auto.role)) value.auto.role = DEFAULTS.auto.role;
@@ -117,11 +122,15 @@ export function collectSources(context, settings) {
     return result;
 }
 
-export function buildPromptRequest(context, settings, focus = '') {
-    const sources = collectSources(context, settings);
-    const substitute = (text, macros = {}) => context.substituteParamsExtended
+export function expandMacros(context, text, macros = {}) {
+    return context.substituteParamsExtended
         ? context.substituteParamsExtended(text, macros)
         : context.substituteParams(text, { dynamicMacros: macros });
+}
+
+export function buildPromptRequest(context, settings, focus = '') {
+    const sources = collectSources(context, settings);
+    const substitute = (text, macros = {}) => expandMacros(context, text, macros);
     const labels = { history: 'Recent conversation', character: 'Character description', persona: 'User / persona description', personality: 'Character personality', scenario: 'Scenario', examples: 'Example dialogue' };
     const macros = Object.fromEntries(Object.entries(sources).map(([key, value]) => [`ig_${key}`, value]));
     const input = settings.promptMode === 'custom'
@@ -150,8 +159,12 @@ export function cleanPromptResponse(response) {
     return result;
 }
 
-export function composeFinalPrompt(draft, settings, substitute = value => value) {
+export function composeFinalPrompt(draft, settings, substitute = (value, macros) => value.replace(/{{\s*ig_prompt\s*}}/gi, () => macros.ig_prompt)) {
     if (!draft.trim()) throw new Error('Write or generate a prompt first.');
-    const prompt = [settings.prefix, draft, settings.suffix].map(value => substitute(value).trim()).filter(Boolean).join(', ');
-    return prompt;
+    // Keep the request-local prompt literal: text returned by an AI must not execute
+    // native macros (including variable mutations) when inserted into the template.
+    const marker = `IGPROMPT${crypto.randomUUID().replaceAll('-', '')}`;
+    const expanded = substitute(settings.finalTemplate, { ig_prompt: marker }).trim();
+    if (!expanded.includes(marker)) throw new Error('Include {{ig_prompt}} in your final image prompt template.');
+    return expanded.replaceAll(marker, draft.trim());
 }

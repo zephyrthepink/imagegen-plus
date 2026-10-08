@@ -1,12 +1,12 @@
-import { MODULE, PROMPT_MAX_TOKENS, buildPromptRequest, chatKey, cleanPromptResponse, composeFinalPrompt, matchesRule, ruleSignature } from './core.js';
+import { MODULE, PROMPT_MAX_TOKENS, buildPromptRequest, chatKey, cleanPromptResponse, composeFinalPrompt, expandMacros, matchesRule, ruleSignature } from './core.js';
 import { resolveImageProfile } from './server/shared.mjs';
 import { liteRouter } from './providers/literouter.js';
 
 export const PROVIDERS = new Map([[liteRouter.id, liteRouter]]);
 
 export class GenerationRuntime {
-    constructor({ context, settings, saveImage, publishImage, onState = () => {} }) {
-        Object.assign(this, { context, settings, saveImage, publishImage, onState });
+    constructor({ context, settings, apiKey = () => '', saveImage, publishImage, onState = () => {} }) {
+        Object.assign(this, { context, settings, apiKey, saveImage, publishImage, onState });
         this.controller = null;
         this.phase = 'idle';
         this.lastResult = null;
@@ -24,7 +24,9 @@ export class GenerationRuntime {
         if (!settings.enabled) throw new Error('Enable ImageGen+ first.');
         const origin = this.context();
         if (!chatKey(origin)) throw new Error('Open a character or group chat first.');
-        const imageProfile = kind !== 'prompt' ? resolveImageProfile(origin, settings.imageProfileId) : null;
+        const imageProfile = kind !== 'prompt' && settings.imageConnection === 'profile' ? resolveImageProfile(origin, settings.imageProfileId) : null;
+        const apiKey = kind !== 'prompt' && settings.imageConnection === 'manual' ? this.apiKey().trim() : '';
+        if (kind !== 'prompt' && settings.imageConnection === 'manual' && !apiKey) throw new Error('Enter your LiteRouter API key in Connection settings.');
         const controller = new AbortController();
         this.controller = controller;
         const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(settings.timeoutSeconds * 1000)]);
@@ -48,11 +50,11 @@ export class GenerationRuntime {
                 if (kind === 'prompt') return { draft: written };
             }
             phase('Generating image…');
-            const prompt = exact?.prompt ?? composeFinalPrompt(written, settings, value => origin.substituteParams(value));
+            const prompt = exact?.prompt ?? composeFinalPrompt(written, settings, (text, macros) => expandMacros(origin, text, macros));
             const imageSettings = exact ? { ...settings, ...exact.settings } : settings;
             const provider = PROVIDERS.get(imageSettings.provider);
             if (!provider) throw new Error('This image provider is not available.');
-            const image = await provider.generate(prompt, { profile: imageProfile, settings: imageSettings, signal, headers: origin.getRequestHeaders() });
+            const image = await provider.generate(prompt, { profile: imageProfile, apiKey, settings: imageSettings, signal, headers: origin.getRequestHeaders() });
             this.assertCurrent(origin, signal);
             phase('Saving image…');
             const url = await this.saveImage(image, origin);

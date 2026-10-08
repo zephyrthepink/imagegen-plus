@@ -1,6 +1,6 @@
 import { getContext } from '../../../extensions.js';
 import { saveBase64AsFile } from '../../../utils.js';
-import { MODULE, VERSION, DEFAULTS, STYLES, NUMBER_LIMITS, buildPromptRequest, composeFinalPrompt, getPath, setPath, normalizeSettings } from './core.js';
+import { MODULE, VERSION, DEFAULTS, STYLES, NUMBER_LIMITS, buildPromptRequest, composeFinalPrompt, expandMacros, getPath, setPath, normalizeSettings } from './core.js';
 import { AutoScheduler, GenerationRuntime, PROVIDERS } from './runtime.js';
 import { BRIDGE } from './providers/literouter.js';
 import { IMAGE_MODELS, imageProfiles, resolveImageProfile } from './server/shared.mjs';
@@ -17,6 +17,8 @@ let draft = '';
 let focus = '';
 let notice = 'Ready';
 let noticeError = false;
+// Manual credentials are deliberately kept outside settings, exports and chat metadata.
+let manualApiKey = '';
 
 const context = () => getContext();
 const persist = () => context().saveSettingsDebounced();
@@ -56,7 +58,9 @@ function renderModelChoices() {
 }
 
 function renderAdditionsPreview() {
-    settingsRoot.querySelector('[data-additions-preview]').textContent = composeFinalPrompt('your image prompt', settings, value => context().substituteParams(value));
+    const preview = settingsRoot.querySelector('[data-additions-preview]');
+    try { preview.textContent = composeFinalPrompt('your image prompt', settings, (text, macros) => expandMacros(context(), text, macros)); }
+    catch (error) { preview.textContent = error.message; }
 }
 
 async function checkBridge() {
@@ -79,6 +83,8 @@ function renderSettings() {
         else element.value = value;
     }
     settingsRoot.querySelector('[data-custom-template]').hidden = settings.promptMode !== 'custom';
+    settingsRoot.querySelector('[data-profile-connection]').hidden = settings.imageConnection !== 'profile';
+    settingsRoot.querySelector('[data-manual-connection]').hidden = settings.imageConnection !== 'manual';
     settingsRoot.querySelector('[data-style-description]').textContent = STYLES[settings.style].instructions || 'Your instructions below define the writing style.';
     const size = settingsRoot.querySelector('[data-size]');
     size.value = [...size.options].some(option => option.value === `${settings.width}x${settings.height}`) ? `${settings.width}x${settings.height}` : '';
@@ -119,8 +125,8 @@ function renderState() {
 }
 
 function finalPrompt() {
-    try { return composeFinalPrompt(draft, settings, value => context().substituteParams(value)); }
-    catch { return 'Write or generate a draft to see the final prompt.'; }
+    try { return composeFinalPrompt(draft, settings, (text, macros) => expandMacros(context(), text, macros)); }
+    catch (error) { return draft.trim() ? error.message : 'Write or generate a draft to see the final prompt.'; }
 }
 
 function currentResult() { return context().chatMetadata?.[MODULE]?.lastResult ?? null; }
@@ -259,13 +265,21 @@ async function handleAction(action, button) {
             }
             case 'models': {
                 button.disabled = true;
-                const profile = resolveImageProfile(context(), settings.imageProfileId);
-                const models = await PROVIDERS.get(settings.provider).models({ profile, settings: structuredClone(settings), headers: context().getRequestHeaders() });
+                const profile = settings.imageConnection === 'profile' ? resolveImageProfile(context(), settings.imageProfileId) : null;
+                const models = await PROVIDERS.get(settings.provider).models({ profile, apiKey: manualApiKey, settings: structuredClone(settings), headers: context().getRequestHeaders() });
                 settingsRoot.querySelector('[data-model-status]').textContent = `${models.length} curated models · ${models.filter(model => model.listed).length} confirmed by LiteRouter. Availability depends on your plan.`;
                 notify('Image models refreshed.');
                 break;
             }
             case 'check-bridge': await checkBridge(); break;
+            case 'forget-key': {
+                runtime.cancel();
+                scheduler.stop();
+                manualApiKey = '';
+                settingsRoot.querySelector('[data-api-key]').value = '';
+                notify('Manual API key cleared.');
+                break;
+            }
             case 'preview-input': await previewInput(); break;
             case 'resume': scheduler.resume(); break;
             case 'reset-counter': {
@@ -285,6 +299,7 @@ async function handleAction(action, button) {
 }
 
 function bindSettings() {
+    settingsRoot.querySelector('[data-api-key]').addEventListener('input', event => { manualApiKey = event.target.value; });
     settingsRoot.addEventListener('input', event => {
         const element = event.target;
         const path = element.dataset.setting;
@@ -305,8 +320,9 @@ function bindSettings() {
             context().saveMetadataDebounced();
         }
         persist();
-        if (path === 'prefix' || path === 'suffix') renderAdditionsPreview();
-        if (['promptMode', 'style', 'width', 'height'].includes(path)) renderSettings();
+        if (path === 'finalTemplate') renderAdditionsPreview();
+        if (path === 'imageConnection') { runtime.cancel(); scheduler.stop(); if (value === 'profile') void checkBridge(); }
+        if (['imageConnection', 'promptMode', 'style', 'width', 'height'].includes(path)) renderSettings();
         else { renderState(); if (studioRoot) { studioRoot.querySelector('[data-final-prompt]').textContent = finalPrompt(); studioRoot.querySelector('[data-studio-model]').textContent = settings.model; } }
     });
     settingsRoot.addEventListener('change', event => {
@@ -415,7 +431,7 @@ async function initialize() {
     studioTemplate = studio;
     document.getElementById('extensions_settings2').append(settingsRoot);
     runtime = new GenerationRuntime({
-        context, settings: () => settings,
+        context, settings: () => settings, apiKey: () => manualApiKey,
         saveImage: async (image, origin) => saveBase64AsFile(await blobBase64(image.blob), origin.groupId ? 'ImageGenPlus' : origin.name2 || 'ImageGenPlus', `imagegen-plus-${Date.now()}-${crypto.randomUUID()}`, image.format),
         publishImage, onState: renderState,
     });
@@ -428,7 +444,7 @@ async function initialize() {
     renderSettings();
     addChatMenu();
     persist();
-    void checkBridge();
+    if (settings.imageConnection === 'profile') void checkBridge();
 }
 
 jQuery(() => { void initialize().catch(error => { globalThis.toastr?.error(error.message, 'ImageGen+ could not load'); }); });

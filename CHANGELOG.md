@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.2
+
+- Add optional manual LiteRouter API-key setup without the ImageGen+ server plugin, with direct browser requests or SillyTavern's built-in CORS proxy.
+- Keep manual keys in memory for the current page session, with a clear-key button and no credentials in settings, exports or image metadata.
+- Replace beginning/end additions with an editable final image prompt template and request-local `{{ig_prompt}}` macro.
+- Support arbitrary draft placement, repeated prompt references, native macros and line breaks, with live previews.
+- Migrate existing beginning/end additions automatically and preserve exact repeat requests.
+- Keep draft text literal when expanding templates so AI-written macro-looking text does not execute native macros.
+
 ## 1.0.1
 
 - Replace separate API-key settings with a saved LiteRouter connection-profile selector.
