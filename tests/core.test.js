@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS, MODULE, normalizeSettings, matchesRule, chatKey, collectSources, buildPromptRequest, cleanPromptResponse, composeFinalPrompt, expandMacros } from '../core.js';
+import { DEFAULTS, MODULE, normalizeSettings, matchesRule, chatKey, collectSources, buildPromptRequest, cleanPromptResponse, composeFinalPrompt, expandMacros, appendImageResult, imageResults } from '../core.js';
 
 function fixture() {
     return {
@@ -156,4 +156,35 @@ test('an explicit final template takes precedence over legacy additions and conn
     const invalid = normalizeSettings({ imageConnection: 'other', directTransport: 'other' });
     assert.equal(invalid.imageConnection, 'profile');
     assert.equal(invalid.directTransport, 'direct');
+});
+
+test('successive images append separate messages and preserve existing uploaded and generated attachments', () => {
+    const attachments = Object.freeze([{ url: '/uploaded.jpg', source: 'uploaded' }, { url: '/earlier-generated.jpg', source: 'generated' }].map(Object.freeze));
+    const existing = Object.freeze({ name: 'Mira', mes: 'The scene', extra: Object.freeze({ media: attachments }) });
+    const context = { chat: [existing], chatMetadata: { [MODULE]: { auto: { count: 2 } } } };
+    const first = { url: '/first.jpg', draft: 'First scene', prompt: 'First scene' };
+    const second = { url: '/second.jpg', draft: 'Second scene', prompt: 'Second scene' };
+    const one = appendImageResult(context, first);
+    const two = appendImageResult(context, second);
+    assert.equal(one.index, 1);
+    assert.equal(two.index, 2);
+    assert.equal(context.chat[0], existing);
+    assert.equal(context.chat[0].extra.media, attachments);
+    assert.equal(context.chat[1].extra.media[0].url, '/first.jpg');
+    assert.equal(context.chat[2].extra.media[0].url, '/second.jpg');
+    assert.notEqual(one.message, two.message);
+    assert.notEqual(one.message.extra.media, two.message.extra.media);
+    assert.deepEqual(imageResults(context), [first, second]);
+    assert.equal(context.chatMetadata[MODULE].auto.count, 2);
+    assert.equal(context.chatMetadata[MODULE].lastResult, second);
+});
+
+test('the image history supports earlier metadata and does not duplicate the latest image after reload', () => {
+    const legacy = { url: '/legacy.jpg', prompt: 'Earlier image' };
+    const context = { chat: [], chatMetadata: { [MODULE]: { lastResult: legacy } } };
+    assert.deepEqual(imageResults(context), [legacy]);
+    appendImageResult(context, legacy);
+    const reloaded = JSON.parse(JSON.stringify(context));
+    assert.equal(imageResults(reloaded).length, 1);
+    assert.equal(imageResults(reloaded)[0].url, '/legacy.jpg');
 });

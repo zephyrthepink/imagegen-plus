@@ -1,7 +1,7 @@
 import { IMAGE_MODELS, createImagePayload } from './server/shared.mjs';
 
 export const MODULE = 'imagegen-plus';
-export const VERSION = '1.0.3';
+export const VERSION = '1.0.4';
 export const PROMPT_MAX_TOKENS = 350;
 
 export const STYLES = {
@@ -174,4 +174,26 @@ export function applyImageOptions(settings, overrides = {}) {
     for (const key of ['model', 'width', 'height', 'seed']) if (Object.hasOwn(overrides, key)) result[key] = overrides[key];
     createImagePayload('Validate image options', result);
     return result;
+}
+
+export function imageResults(context) {
+    const results = (context.chat ?? []).map(message => message.extra?.[MODULE]).filter(result => typeof result?.url === 'string' && result.url);
+    const legacy = context.chatMetadata?.[MODULE]?.lastResult;
+    if (legacy?.url && !results.some(result => result.url === legacy.url)) results.push(legacy);
+    return results;
+}
+
+export function appendImageResult(context, result) {
+    const message = {
+        name: 'UIGE', is_user: false, is_system: true, send_date: new Date().toISOString(), mes: '',
+        extra: {
+            media: [{ url: result.url, type: 'image', source: 'generated', title: result.prompt }],
+            media_display: 'gallery', media_index: 0, inline_image: false,
+            [MODULE]: result,
+        },
+    };
+    const index = context.chat.push(message) - 1;
+    context.chatMetadata[MODULE] ??= {};
+    context.chatMetadata[MODULE].lastResult = result;
+    return { message, index };
 }

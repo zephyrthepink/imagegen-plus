@@ -1,15 +1,15 @@
-# ImageGen+ profile bridge
+# UIGE profile bridge
 
 This small SillyTavern server plugin reuses a saved Custom connection profile's API key for LiteRouter images. The key stays on the server. It uses SillyTavern's native, account-scoped secret lookup and sends requests only to `https://image.literouter.com`.
 
-**This plugin is optional.** To use ImageGen+ without it, choose **Manual API key** in Connection settings and enter your LiteRouter key. Manual requests use the browser directly or SillyTavern's built-in CORS proxy. The intelligent prompt writer uses native Connection Manager and needs no ImageGen+ server plugin.
+**This plugin is optional.** To use UIGE without it, choose **Manual API key** in Connection settings and enter your LiteRouter key. Manual requests use the browser directly or SillyTavern's built-in CORS proxy. The intelligent prompt writer uses native Connection Manager and needs no UIGE server plugin.
 
 ## One-time installation
 
 1. Download **ImageGenPlus-Server-Bridge.zip** from the [latest release](https://github.com/zephyrthepink/imagegen-plus/releases/latest) and extract it into your **SillyTavern root folder**. It adds `plugins/imagegen-plus/`.
 2. Set `enableServerPlugins: true` in SillyTavern's `config.yaml`.
 3. Restart SillyTavern and reload the browser.
-4. In **Extensions → ImageGen+ → Connection**, select a saved Custom (OpenAI-compatible) profile with server URL `https://api.literouter.com/v1`.
+4. In **Extensions → UIGE → Connection**, select a saved Custom (OpenAI-compatible) profile with server URL `https://api.literouter.com/v1`.
 
 Alternatively, copy this whole `server/` directory into `SillyTavern/plugins/imagegen-plus/`. Keep `index.mjs`, `bridge.mjs` and `shared.mjs` together. No npm installation is needed. Launch SillyTavern from its usual root directory so the plugin can import its native secrets module.
 

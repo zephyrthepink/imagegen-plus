@@ -63,7 +63,7 @@ async function request(path, { profile, apiKey = '', settings, signal, headers =
                 : 'Could not reach LiteRouter directly. Check your connection; if your browser blocks cross-origin requests, choose the SillyTavern CORS proxy.';
             throw new Error(message, { cause: error });
         }
-        throw new Error('Could not reach the ImageGen+ server bridge. Check the SillyTavern connection.', { cause: error });
+        throw new Error('Could not reach the UIGE server bridge. Check the SillyTavern connection.', { cause: error });
     }
     if (!response.ok) {
         if (manual) {
@@ -78,15 +78,15 @@ async function request(path, { profile, apiKey = '', settings, signal, headers =
                     throw new Error(`SillyTavern Basic Auth blocks the proxy. Direct request failed: ${error.message}`, { cause: error });
                 }
             }
-            if (proxy && response.status === 404) throw new Error('Enable enableCorsProxy: true in SillyTavern’s config.yaml and restart, or choose a direct browser request. No ImageGen+ server plugin is needed.');
+            if (proxy && response.status === 404) throw new Error('Enable enableCorsProxy: true in SillyTavern’s config.yaml and restart, or choose a direct browser request. No UIGE server plugin is needed.');
             const fallback = { 401: 'Check your API key.', 402: 'Payment or model access rejected.', 403: 'Check your key and account plan.', 429: 'Rate limit reached.' }[response.status] || '';
             const detail = await errorDetail(response, apiKey) || fallback;
             throw new Error(`LiteRouter ${proxy ? 'proxy' : 'direct'} request failed (${response.status}). ${detail}`.trim());
         }
-        if (response.status === 404) throw new Error('Install the bundled ImageGen+ server bridge and restart SillyTavern, or choose Manual API key in Connection settings.');
+        if (response.status === 404) throw new Error('Install the bundled UIGE server bridge and restart SillyTavern, or choose Manual API key in Connection settings.');
         let detail = '';
         try { detail = (await response.json()).error || ''; } catch { /* Missing/unavailable plugin route. */ }
-        throw new Error(detail || `ImageGen+ image request failed (${response.status}).`);
+        throw new Error(detail || `UIGE image request failed (${response.status}).`);
     }
     return { response, transport: manual ? proxy ? 'proxy' : 'direct' : 'profile' };
 }

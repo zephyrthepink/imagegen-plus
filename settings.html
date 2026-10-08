@@ -1,16 +1,16 @@
 <div id="imagegen_plus_settings" class="ig-root">
     <div class="inline-drawer">
         <div class="inline-drawer-toggle inline-drawer-header">
-            <b><i class="fa-solid fa-image" aria-hidden="true"></i> ImageGen+</b>
+            <b title="Unremarkable Image Generation Extension">UIGE</b>
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content ig-body">
             <div class="ig-overview">
-                <label class="checkbox_label"><input type="checkbox" data-setting="enabled"> Enable ImageGen+</label>
-                <span class="ig-badge">1.0.3</span>
+                <label class="checkbox_label"><input type="checkbox" data-setting="enabled"> Enable UIGE</label>
+                <span class="ig-badge">1.0.4</span>
             </div>
             <p class="ig-hint">Generate images from your chat or a custom prompt.</p>
-            <div class="ig-toolbar"><button class="menu_button ig-primary" type="button" data-action="studio"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Open image studio</button></div>
+            <div class="ig-toolbar"><button class="menu_button" type="button" data-action="studio">Open image studio</button></div>
             <div class="ig-status" role="status" aria-live="polite">Ready</div>
 
             <div class="ig-group-heading">Image generation</div>
@@ -18,7 +18,7 @@
                 <summary><span class="ig-icon fa-solid fa-plug" aria-hidden="true"></span><span><b>Connection</b><small>Saved profile or your own API key</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
                 <div class="ig-section-content">
                     <label class="ig-field"><span>Provider</span><select class="text_pole" data-setting="provider"><option value="literouter">LiteRouter</option></select></label>
-                    <label class="ig-field"><span>Connect for images using</span><select class="text_pole" data-setting="imageConnection"><option value="profile">Saved connection profile · uses profile bridge</option><option value="manual">Manual API key · no ImageGen+ server plugin</option></select></label>
+                    <label class="ig-field"><span>Connect for images using</span><select class="text_pole" data-setting="imageConnection"><option value="profile">Saved connection profile · uses profile bridge</option><option value="manual">Manual API key · no UIGE server plugin</option></select></label>
                     <div data-profile-connection>
                         <label class="ig-field"><span>Connection profile for images</span><select class="text_pole" data-setting="imageProfileId"><option value="">Follow selected LiteRouter profile</option></select></label>
                         <p class="ig-hint">LiteRouter Custom profiles: <code>https://api.literouter.com/v1</code>.</p>
@@ -36,7 +36,6 @@
                     </div>
                     <div data-manual-connection hidden>
                         <label class="ig-field"><span>LiteRouter API key</span><input class="text_pole" type="password" data-api-key autocomplete="off" spellcheck="false" placeholder="Paste your LiteRouter key" autocapitalize="off"></label>
-                        <p class="ig-hint">Saved to your SillyTavern account. Excluded from exports.</p>
                         <button class="menu_button" type="button" data-action="forget-key">Clear API key</button>
                         <label class="ig-field"><span>Send image requests through</span><select class="text_pole" data-setting="directTransport"><option value="direct">Direct browser request</option><option value="proxy">SillyTavern's built-in CORS proxy</option></select></label>
                         <p class="ig-hint">Proxy requires <code>enableCorsProxy: true</code> and a restart. Basic Auth falls back to direct.</p>
@@ -120,14 +119,7 @@
                     <div class="ig-toolbar"><button class="menu_button" type="button" data-action="reset-counter">Reset this chat's counter</button><button class="menu_button" type="button" data-action="resume" hidden>Resume automatic images</button></div>
                 </div>
             </details>
-            <details class="ig-section">
-                <summary><span class="ig-icon fa-solid fa-box-archive" aria-hidden="true"></span><span><b>Configuration</b><small>Export or import your setup</small></span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary>
-                <div class="ig-section-content">
-                    <div class="ig-toolbar"><button class="menu_button" type="button" data-action="export">Export settings</button><button class="menu_button" type="button" data-action="import">Import settings</button><input type="file" accept="application/json,.json" data-import-file hidden></div>
-                    <p class="ig-hint">No keys or chat history. Imports turn automation off.</p>
-                </div>
-            </details>
-            <p class="ig-footer">ImageGen+ 1.0.3 · by ZephyrThePink</p>
+            <p class="ig-footer">UIGE 1.0.4 · by ZephyrThePink</p>
         </div>
     </div>
 </div>

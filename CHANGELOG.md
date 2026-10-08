@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.4
+
+- Rename the extension to UIGE — Unremarkable Image Generation Extension, preserving existing settings and credentials.
+- Keep generated images as separate chat messages and add browsable studio image history so previous results remain accessible.
+- Preserve existing uploaded/generated attachments when adding new images.
+- Remove configuration import/export controls.
+- Use a plain native wand-menu entry and remove branding/icons from the studio header and settings drawer title.
+- Remove the API-key storage hint and make settings action buttons full width.
+- Add `/uige`, retaining `/igplus` as an alias.
+
 ## 1.0.3
 
 - Preserve manual LiteRouter keys across reloads in native account storage; remove only on explicit clearing.

@@ -3,7 +3,7 @@ import { IMAGE_HOST, IMAGE_MODELS, isLiteRouterProfile, createImagePayload, norm
 export function createHandlers({ readSecret, secretKey = 'api_key_custom', fetcher = globalThis.fetch }) {
     const handler = operation => async (request, response) => {
         const directories = request.user?.directories;
-        if (!directories) return response.status(401).json({ error: 'Sign in to SillyTavern to use ImageGen+.' });
+        if (!directories) return response.status(401).json({ error: 'Sign in to SillyTavern to use UIGE.' });
         const body = request.body ?? {};
         if (!isLiteRouterProfile(body.profile)) return response.status(400).json({ error: 'Choose a Custom connection profile using https://api.literouter.com/v1.' });
         if (body.profile['secret-id'] !== null && body.profile['secret-id'] !== undefined && typeof body.profile['secret-id'] !== 'string') return response.status(400).json({ error: 'The connection profile has an invalid saved secret ID.' });

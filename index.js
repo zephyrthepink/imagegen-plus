@@ -1,6 +1,6 @@
 import { getContext } from '../../../extensions.js';
 import { saveBase64AsFile } from '../../../utils.js';
-import { MODULE, VERSION, DEFAULTS, NUMBER_LIMITS, buildPromptRequest, composeFinalPrompt, expandMacros, getPath, setPath, normalizeSettings } from './core.js';
+import { MODULE, VERSION, DEFAULTS, NUMBER_LIMITS, appendImageResult, imageResults, buildPromptRequest, composeFinalPrompt, expandMacros, getPath, setPath, normalizeSettings } from './core.js';
 import { AutoScheduler, GenerationRuntime, PROVIDERS } from './runtime.js';
 import { BRIDGE } from './providers/literouter.js';
 import { IMAGE_MODELS, imageProfiles, resolveImageProfile } from './server/shared.mjs';
@@ -13,13 +13,14 @@ let studioPopup;
 let studioRoot;
 let studioOptions;
 let studioSize = '';
+let selectedResultUrl = '';
 let runtime;
 let scheduler;
 let draft = '';
 let focus = '';
 let notice = 'Ready';
 let noticeError = false;
-// Stored separately in native account storage; never included in extension exports.
+// Stored separately in native account storage.
 let manualApiKey = '';
 
 const context = () => getContext();
@@ -28,7 +29,7 @@ const notify = (message, error = false) => { notice = message; noticeError = err
 
 async function loadAsset(file) {
     const response = await fetch(new URL(file, assets));
-    if (!response.ok) throw new Error(`Could not load ImageGen+ ${file}.`);
+    if (!response.ok) throw new Error(`Could not load UIGE ${file}.`);
     return response.text();
 }
 function fromHtml(html) {
@@ -131,7 +132,10 @@ function finalPrompt() {
     catch (error) { return draft.trim() ? error.message : 'Write or generate a draft to see the final prompt.'; }
 }
 
-function currentResult() { return context().chatMetadata?.[MODULE]?.lastResult ?? null; }
+function currentResult() {
+    const results = imageResults(context());
+    return results.find(result => result.url === selectedResultUrl) ?? results.at(-1) ?? null;
+}
 
 function renderStudio() {
     if (!studioRoot) return;
@@ -140,6 +144,24 @@ function renderStudio() {
     studioRoot.querySelector('[data-final-prompt]').textContent = finalPrompt();
     renderStudioOptions();
     const result = currentResult();
+    const results = imageResults(context());
+    const gallery = studioRoot.querySelector('[data-image-gallery]');
+    gallery.replaceChildren(...results.map((item, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'ig-thumbnail';
+        button.dataset.resultUrl = item.url;
+        button.setAttribute('aria-label', `Image ${index + 1}`);
+        button.setAttribute('aria-pressed', String(item === result));
+        const thumbnail = document.createElement('img');
+        thumbnail.src = item.url;
+        thumbnail.alt = '';
+        thumbnail.loading = 'lazy';
+        button.append(thumbnail);
+        return button;
+    }));
+    gallery.hidden = results.length < 2;
+    studioRoot.querySelector('[data-image-count]').textContent = results.length ? `${results.findIndex(item => item === result) + 1} / ${results.length}` : '';
     studioRoot.querySelector('.ig-result').hidden = !result;
     studioRoot.querySelector('[data-empty-preview]').hidden = Boolean(result);
     if (result) {
@@ -175,10 +197,13 @@ async function showPopup(content, options = {}) {
 async function openStudio() {
     if (studioPopup) return;
     studioRoot = fromHtml(studioTemplate);
+    selectedResultUrl = '';
     resetStudioOptions();
     const modelSelect = studioRoot.querySelector('[data-image-option=model]');
     modelSelect.replaceChildren(...IMAGE_MODELS.map(model => new Option(model.id, model.id)));
     studioRoot.addEventListener('click', event => {
+        const thumbnail = event.target.closest('[data-result-url]');
+        if (thumbnail) { selectedResultUrl = thumbnail.dataset.resultUrl; renderStudio(); return; }
         const button = event.target.closest('[data-action]');
         if (button) void handleAction(button.dataset.action, button);
     });
@@ -219,49 +244,30 @@ async function blobBase64(blob) {
 
 async function publishImage(result, origin) {
     const ctx = context();
-    const message = {
-        name: 'ImageGen+', is_user: false, is_system: true, send_date: new Date().toISOString(), mes: '',
-        extra: {
-            media: [{ url: result.url, type: 'image', source: 'generated', title: result.prompt }],
-            media_display: 'gallery', media_index: 0, inline_image: false,
-            [MODULE]: result,
-        },
-    };
-    origin.chat.push(message);
-    origin.chatMetadata[MODULE] ??= {};
-    origin.chatMetadata[MODULE].lastResult = result;
-    ctx.addOneMessage(message);
-    const index = origin.chat.length - 1;
+    const { message, index } = appendImageResult(origin, result);
     await ctx.eventSource.emit(ctx.eventTypes.MESSAGE_RECEIVED, index, 'extension');
+    ctx.addOneMessage(message, { forceId: index });
     await ctx.eventSource.emit(ctx.eventTypes.CHARACTER_MESSAGE_RENDERED, index, 'extension');
     await ctx.saveChat();
     ctx.scrollOnMediaLoad?.();
+    selectedResultUrl = result.url;
     renderStudio();
 }
 
 async function generate(kind, automatic = false, exact = null, inputDraft = null, imageOptions = {}) {
-    if (runtime.busy) throw new Error('An ImageGen+ request is already running.');
+    if (runtime.busy) throw new Error('A UIGE request is already running.');
     notify('Starting…');
     try {
         const result = await runtime.run(kind, { draft: inputDraft ?? draft, focus: automatic ? '' : focus, auto: automatic, exact, imageOptions });
         if (result.draft) draft = result.draft;
         notify(kind === 'prompt' ? 'Prompt ready.' : result.transport === 'direct' && settings.directTransport === 'proxy' ? 'Image saved · direct request (proxy blocked by Basic Auth).' : 'Image saved to this chat.');
         renderStudio();
-        if (automatic) globalThis.toastr?.success('A new scene image was added to the chat.', 'ImageGen+');
+        if (automatic) globalThis.toastr?.success('A new scene image was added to the chat.', 'UIGE');
         return result;
     } catch (error) {
         notify(error.name === 'AbortError' ? 'Request cancelled.' : error.message, error.name !== 'AbortError');
         throw error;
     } finally { scheduler?.schedule(); }
-}
-
-function downloadJson(value, filename) {
-    const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }));
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 async function previewInput() {
@@ -326,11 +332,9 @@ async function handleAction(action, button) {
                 renderState();
                 break;
             }
-            case 'export': downloadJson({ extension: MODULE, version: VERSION, settings }, 'imagegen-plus-settings.json'); break;
-            case 'import': settingsRoot.querySelector('[data-import-file]').click(); break;
         }
     } catch (error) {
-        if (error.name !== 'AbortError') { notify(error.message, true); globalThis.toastr?.error(error.message, 'ImageGen+'); }
+        if (error.name !== 'AbortError') { notify(error.message, true); globalThis.toastr?.error(error.message, 'UIGE'); }
     } finally { if (action === 'models') button.disabled = false; }
 }
 
@@ -381,40 +385,24 @@ function bindSettings() {
         const button = event.target.closest('[data-action]');
         if (button) void handleAction(button.dataset.action, button);
     });
-    settingsRoot.querySelector('[data-import-file]').addEventListener('change', async event => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-        try {
-            if (file.size > 1024 * 1024) throw new Error('Configuration files must be smaller than 1 MB.');
-            const data = JSON.parse(await file.text());
-            if (data.extension !== MODULE || !data.settings || typeof data.settings !== 'object' || Array.isArray(data.settings)) throw new Error('Choose an ImageGen+ configuration export.');
-            runtime.cancel();
-            settings = normalizeSettings(data.settings);
-            settings.auto.enabled = false;
-            context().extensionSettings[MODULE] = settings;
-            scheduler.reset();
-            persist();
-            renderSettings();
-            notify('Configuration imported. Automatic generation is off.');
-        } catch (error) { notify(error.message, true); }
-        finally { event.target.value = ''; }
-    });
+
 }
 
 function addChatMenu() {
     if (document.getElementById('imagegen_plus_wand')) return;
     const menu = document.getElementById('extensionsMenu');
     if (!menu) return;
-    const container = document.createElement('div');
-    container.className = 'extension_container';
-    container.id = 'imagegen_plus_wand';
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'list-group-item flex-container flexGap5 interactable';
-    button.innerHTML = '<span class="fa-solid fa-image extensionsMenuExtensionButton" aria-hidden="true"></span><span>ImageGen+ studio</span>';
-    button.addEventListener('click', () => { void handleAction('studio', button); });
-    container.append(button);
-    menu.append(container);
+    const item = document.createElement('div');
+    item.id = 'imagegen_plus_wand';
+    item.className = 'list-group-item flex-container flexGap5';
+    item.setAttribute('role', 'button');
+    item.tabIndex = 0;
+    item.innerHTML = '<div class="fa-solid fa-image extensionsMenuExtensionButton" aria-hidden="true"></div><span>Image studio</span>';
+    item.addEventListener('click', () => { void handleAction('studio', item); });
+    item.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void handleAction('studio', item); }
+    });
+    menu.append(item);
     renderState();
 }
 
@@ -434,6 +422,7 @@ function bindEvents() {
         scheduler.setGroupBusy(false);
         draft = '';
         focus = '';
+        selectedResultUrl = '';
         if (studioRoot) resetStudioOptions();
         notice = 'Ready';
         noticeError = false;
@@ -445,16 +434,16 @@ function bindEvents() {
     on('APP_READY', () => { addChatMenu(); });
     if (ctx.SlashCommandParser && ctx.SlashCommand) {
         ctx.SlashCommandParser.addCommandObject(ctx.SlashCommand.fromProps({
-            name: 'igplus',
+            name: 'uige', aliases: ['igplus'],
             callback: async (_args, value) => {
                 try {
                     const text = String(value ?? '').trim();
                     const result = await generate(text ? 'image' : 'scene', false, null, text || null);
                     return result?.url || '';
-                } catch (error) { if (error.name !== 'AbortError') globalThis.toastr?.error(error.message, 'ImageGen+'); return ''; }
+                } catch (error) { if (error.name !== 'AbortError') globalThis.toastr?.error(error.message, 'UIGE'); return ''; }
             },
             unnamedArgumentList: [ctx.SlashCommandArgument.fromProps({ description: 'Image prompt (omit to illustrate the current scene)', typeList: [ctx.ARGUMENT_TYPE.STRING], isRequired: false })],
-            helpString: 'Generate an ImageGen+ image. With no argument, the connection profile writes a prompt from the current scene. With text, use that text as the image prompt.',
+            helpString: 'Generate a UIGE image from your prompt, or omit the prompt to illustrate the current scene.',
         }));
     }
 }
@@ -472,7 +461,7 @@ async function initialize() {
     document.getElementById('extensions_settings2').append(settingsRoot);
     runtime = new GenerationRuntime({
         context, settings: () => settings, apiKey: () => manualApiKey,
-        saveImage: async (image, origin) => saveBase64AsFile(await blobBase64(image.blob), origin.groupId ? 'ImageGenPlus' : origin.name2 || 'ImageGenPlus', `imagegen-plus-${Date.now()}-${crypto.randomUUID()}`, image.format),
+        saveImage: async (image, origin) => saveBase64AsFile(await blobBase64(image.blob), origin.groupId ? 'UIGE' : origin.name2 || 'UIGE', `uige-${Date.now()}-${crypto.randomUUID()}`, image.format),
         publishImage, onState: renderState,
     });
     scheduler = new AutoScheduler({
@@ -487,4 +476,4 @@ async function initialize() {
     if (settings.imageConnection === 'profile') void checkBridge();
 }
 
-jQuery(() => { void initialize().catch(error => { globalThis.toastr?.error(error.message, 'ImageGen+ could not load'); }); });
+jQuery(() => { void initialize().catch(error => { globalThis.toastr?.error(error.message, 'UIGE could not load'); }); });

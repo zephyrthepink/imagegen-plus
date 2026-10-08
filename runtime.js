@@ -19,9 +19,9 @@ export class GenerationRuntime {
         if (chatKey(current) !== chatKey(origin) || current.chat !== origin.chat) throw new DOMException('Chat changed', 'AbortError');
     }
     async run(kind, { draft = '', focus = '', auto = false, exact = null, imageOptions = {} } = {}) {
-        if (this.busy) throw new Error('An ImageGen+ request is already running.');
+        if (this.busy) throw new Error('A UIGE request is already running.');
         const settings = structuredClone(this.settings());
-        if (!settings.enabled) throw new Error('Enable ImageGen+ first.');
+        if (!settings.enabled) throw new Error('Enable UIGE first.');
         const imageSettings = exact ? { ...settings, ...exact.settings } : kind === 'prompt' ? settings : applyImageOptions(settings, imageOptions);
         const origin = this.context();
         if (!chatKey(origin)) throw new Error('Open a character or group chat first.');

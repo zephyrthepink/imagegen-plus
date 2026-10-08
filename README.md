@@ -1,8 +1,8 @@
-# ImageGen+
+# UIGE — Unremarkable Image Generation Extension
 
 Turn your SillyTavern conversations into images with editable AI-written prompts, flexible automatic generation, and LiteRouter image generation.
 
-**Version 1.0.3 · Author: ZephyrThePink · MIT license**
+**Version 1.0.4 · Author: ZephyrThePink · MIT license**
 
 ## Features
 
@@ -14,28 +14,27 @@ Turn your SillyTavern conversations into images with editable AI-written prompts
 - **Style presets:** cinematic, illustration tags, anime and photographic, plus your own instructions and things to exclude.
 - **Always include:** arrange tags, descriptions and native macros around `{{ig_prompt}}` in a fully editable final prompt template. Works with manual and AI-written prompts.
 - **Optional automatic images:** every N bot, user or combined messages, with optional exact speaker names. Automatic generation is off by default.
-- **Chat integration:** images are saved to SillyTavern's image folder and inserted as image messages. Reopen the studio to download the latest image, reuse its prompt or repeat its request.
+- **Chat integration:** every generated image adds a separate image message and file. Existing attachments are preserved. Browse earlier images in the studio to download, reuse or repeat them.
 - **Theme-aware UI:** compact cards and collapsible settings matching Live2D+ and LiteRouter Tracker, with responsive mobile layouts.
-- **Portable settings:** export/import configuration without credentials or conversation data.
 
 ## Installation
 
-Requires **SillyTavern 1.19.0 or newer** and a LiteRouter account. Intelligent prompt writing uses Connection Manager and any supported saved chat/text completion profile. No Extras service or npm installation is needed. The bundled **ImageGen+ profile bridge is optional**: install it only to reuse saved image credentials.
+Requires **SillyTavern 1.19.0 or newer** and a LiteRouter account. Intelligent prompt writing uses Connection Manager and any supported saved chat/text completion profile. No Extras service or npm installation is needed. The bundled **UIGE profile bridge is optional**: install it only to reuse saved image credentials.
 
 1. Open **Extensions → Install extension**.
 2. Paste `https://github.com/zephyrthepink/imagegen-plus` and install.
-3. Reload SillyTavern and open **Extensions → ImageGen+**.
+3. Reload SillyTavern and open **Extensions → UIGE**.
 4. Under **Connection → Connect for images using**, choose **Manual API key** or **Saved connection profile** using the setup below.
 5. Open **Prompt writer** and choose the connection profile that writes your prompts. It can be different from the LiteRouter image connection.
-6. Open a chat, then select **Open image studio** or **ImageGen+ studio** from the chat's wand menu.
+6. Open a chat, then select **Open image studio** or **Image studio** from the chat's wand menu.
 
-### Manual API key — no ImageGen+ server plugin
+### Manual API key — no UIGE server plugin
 
-Choose **Manual API key**, paste your LiteRouter key, and leave the transport on **Direct browser request**. The key is retained in SillyTavern's account storage across reloads. Press **Clear API key** to remove it explicitly. It stays separate from extension configuration exports and image metadata. Requests use the fixed LiteRouter image host and never fetch a saved profile's key.
+Choose **Manual API key**, paste your LiteRouter key, and leave the transport on **Direct browser request**. The key is retained in SillyTavern's account storage across reloads. Press **Clear API key** to remove it explicitly. Requests use the fixed LiteRouter image host and never fetch a saved profile's key.
 
-If your browser blocks cross-origin requests, choose **SillyTavern's built-in CORS proxy**, set `enableCorsProxy: true` in SillyTavern's `config.yaml`, and restart. This uses SillyTavern's existing proxy, with no ImageGen+ server plugin. The proxy transport sends the manually entered key through your SillyTavern server to LiteRouter. Model refresh uses the selected transport as well.
+If your browser blocks cross-origin requests, choose **SillyTavern's built-in CORS proxy**, set `enableCorsProxy: true` in SillyTavern's `config.yaml`, and restart. This uses SillyTavern's existing proxy, with no UIGE server plugin. The proxy transport sends the manually entered key through your SillyTavern server to LiteRouter. Model refresh uses the selected transport as well.
 
-SillyTavern Basic Auth and LiteRouter Bearer authentication share the Authorization header, so the native proxy cannot carry both. If SillyTavern returns its own `401` Basic challenge, ImageGen+ falls back to a direct request with the same payload. This happens before the proxy contacts LiteRouter. Provider errors, including `402`, are shown with a redacted message and are not retried. If direct requests are also blocked, use the saved-profile bridge.
+SillyTavern Basic Auth and LiteRouter Bearer authentication share the Authorization header, so the native proxy cannot carry both. If SillyTavern returns its own `401` Basic challenge, UIGE falls back to a direct request with the same payload. This happens before the proxy contacts LiteRouter. Provider errors, including `402`, are shown with a redacted message and are not retried. If direct requests are also blocked, use the saved-profile bridge.
 
 ### Saved connection profile
 
@@ -43,7 +42,7 @@ Download **ImageGenPlus-Server-Bridge.zip** from the [latest release](https://gi
 
 Choose a saved **Custom (OpenAI-compatible)** profile using `https://api.literouter.com/v1`. Its existing saved credentials are reused for models and images. The profile's chat model is unchanged. The bridge reads the authenticated user's saved Custom key using the profile's secret ID, matching native SillyTavern behavior. Keys stay on the server; enabling key exposure or the CORS proxy is unnecessary.
 
-Stored manual keys are preserved when updating or importing configuration. Configuration exports contain profile IDs, templates and rules, but no keys or chat history. Selecting manual credentials does not change how the prompt writer uses its connection profile.
+Stored manual keys and settings are preserved when updating. Selecting manual credentials does not change how the prompt writer uses its connection profile. The installation URL and internal storage identifiers remain compatible with earlier ImageGen+ versions.
 
 ## Image studio
 
@@ -54,18 +53,18 @@ The **Generation** panel controls model, image size, custom width/height and see
 - **Generate image** submits the editable draft through your final prompt template.
 - **Repeat image** resubmits the last image's exact final prompt, model, dimensions and known seed. It does not reapply additions or rewrite the prompt. Provider/model changes can still affect reproducibility. If the seed was not exposed, the repeated request remains random.
 - **Reuse prompt** copies the last image's draft into the editor for a variation.
-- **Cancel request** stops the extension's current request. Closing the studio leaves an in-progress request running; switching chats or disabling ImageGen+ cancels it.
+- **Cancel request** stops the extension's current request. Closing the studio leaves an in-progress request running; switching chats or disabling UIGE cancels it.
 
-The latest image's prompt, model, dimensions, timestamp and any exposed seed/request ID are retained in its chat message metadata. The studio's latest-image preview is specific to each chat and survives reopening. Images are system messages so their prompts do not feed back into the conversation. Generated images and system messages are also excluded from the prompt writer's history.
+Each image's prompt, model, dimensions, timestamp and any exposed seed/request ID are retained in its own chat message metadata. The studio's image history is specific to each chat and survives reopening; select a thumbnail to view or reuse an earlier result. Each generation adds a new image without modifying existing messages or attachments. Images are system messages so their prompts do not feed back into the conversation. Generated images and system messages are also excluded from the prompt writer's history.
 
 ### Slash command
 
 ```text
-/igplus
-/igplus a moonlit mountain lake with mist over the water
+/uige
+/uige a moonlit mountain lake with mist over the water
 ```
 
-With no argument, `/igplus` illustrates the current scene using the prompt writer. With text, it generates directly from that text through your final prompt template. Returns the saved image URL into the STscript pipe.
+With no argument, `/uige` illustrates the current scene using the prompt writer. With text, it generates directly from that text through your final prompt template. Returns the saved image URL into the STscript pipe. `/igplus` remains an alias for existing scripts.
 
 ## Sources, templates and style
 
@@ -112,7 +111,7 @@ Style: soft lighting, masterpiece
 
 The default `{{ig_prompt}}` adds nothing. Settings include a live example, and the studio previews the exact final prompt. The macro exists only during composition: it is not registered globally or stored in chat variables. Draft text is inserted literally, so macro-looking text returned by the AI does not execute native macros. Your template's native macros still expand normally. Your editable draft remains separate and the template is applied once. **Repeat image** keeps the original final prompt exactly.
 
-Earlier beginning/end fields migrate into an equivalent template automatically. Exported configurations retain the template.
+Earlier beginning/end fields migrate into an equivalent template automatically.
 
 ## Automatic generation
 
@@ -126,7 +125,7 @@ Automatic images are **off by default**. Configure **Automatic images** and turn
 
 Use one exact name per line; names are case-insensitive. The role and name filters both apply. Counters are saved per chat and count only new matching conversation messages after enabling the feature. Existing history, greetings, system/image messages, duplicate events, swipes, regenerated replies and continuations do not count. Changing the interval, role or speaker filter resets that chat's counter. Disabling/re-enabling automatic images preserves progress for the same rule; use **Reset this chat's counter** to start over.
 
-Generation waits until the foreground chat reply finishes. While a request is running or the cooldown is active, triggers combine into one pending request for the latest scene. Errors and cancellations pause automation for that session; correct the issue, then press **Resume automatic images**. There are no automatic retries of failed paid requests. Imports turn automation off until you explicitly enable it.
+Generation waits until the foreground chat reply finishes. While a request is running or the cooldown is active, triggers combine into one pending request for the latest scene. Errors and cancellations pause automation for that session; correct the issue, then press **Resume automatic images**. There are no automatic retries of failed paid requests.
 
 ## LiteRouter integration
 
